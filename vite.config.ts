@@ -1,6 +1,8 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { execSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import packageJson from './package.json' with { type: 'json' };
 import { handleApi } from './shared/api.ts';
 
@@ -31,11 +33,26 @@ const devApi = (): Plugin => ({
   },
 });
 
+const buildDate = new Date().toISOString().split('T')[0];
+const buildHash = git('rev-parse --short HEAD');
+
+// Writes dist/version.json so a running app can fetch it and detect a newer deployment
+const versionManifest = (): Plugin => ({
+  name: 'gtime-version-manifest',
+  apply: 'build',
+  closeBundle() {
+    writeFileSync(
+      resolve(import.meta.dirname, 'dist', 'version.json'),
+      JSON.stringify({ version: appVersion, buildHash, buildDate }),
+    );
+  },
+});
+
 export default defineConfig({
-  plugins: [react(), devApi()],
+  plugins: [react(), devApi(), versionManifest()],
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
-    __BUILD_DATE__: JSON.stringify(new Date().toISOString().split('T')[0]),
-    __BUILD_HASH__: JSON.stringify(git('rev-parse --short HEAD')),
+    __BUILD_DATE__: JSON.stringify(buildDate),
+    __BUILD_HASH__: JSON.stringify(buildHash),
   },
 });

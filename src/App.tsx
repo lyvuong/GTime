@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeft, BookmarkCheck, BookmarkPlus, ExternalLink, Info, Library, Loader2, Minus, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, BookmarkCheck, BookmarkPlus, ExternalLink, Info, Library, Loader2, Minus, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { AboutModal } from './components/AboutModal';
 import { ChordProViewer } from './components/ChordProViewer';
 import { parseChordPro, transposeParsedSong } from './lib/chordParser';
@@ -8,6 +8,7 @@ import { keyPrefersFlats } from './lib/chordTransposer';
 import { applyThemeToDOM, CHORD_COLORS } from './lib/themeManager';
 import { db, type SavedSong } from './lib/db';
 import { searchApi, songApi, type SearchResult } from './lib/api';
+import { checkForUpdate } from './utils/updateCheck';
 
 interface Viewing {
   sourceId: string;
@@ -30,6 +31,22 @@ export default function App() {
   const [viewing, setViewing] = useState<Viewing | null>(null);
   const [semitones, setSemitones] = useState(0);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [newVersion, setNewVersion] = useState<string | null>(null);
+  const [updateDismissed, setUpdateDismissed] = useState(false);
+
+  // Look for a newer deployment on open and whenever the app comes back to the foreground
+  useEffect(() => {
+    const check = () => {
+      if (!navigator.onLine) return;
+      checkForUpdate()
+        .then((r) => setNewVersion(r.hasUpdate ? (r.latestVersion ?? '') : null))
+        .catch(() => {});
+    };
+    const onVisible = () => document.visibilityState === 'visible' && check();
+    check();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   const library = useLiveQuery(() => db.songs.orderBy('savedAt').reverse().toArray(), []);
   const savedIds = useMemo(() => new Set((library ?? []).map((s) => s.sourceId)), [library]);
@@ -228,6 +245,25 @@ export default function App() {
       </main>
 
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
+
+      {newVersion !== null && !updateDismissed && (
+        <div
+          role="status"
+          className="fixed left-3 right-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 mx-auto max-w-md flex items-center gap-3 p-3 rounded-xl bg-stage-card border border-stage-accent/50 shadow-2xl"
+        >
+          <RefreshCw className="w-4 h-4 text-stage-accent flex-shrink-0" />
+          <span className="flex-1 text-sm">New version available{newVersion ? ` (v${newVersion})` : ''}.</span>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-3 py-1.5 rounded-lg bg-stage-accent text-slate-950 text-sm font-bold"
+          >
+            Update
+          </button>
+          <button onClick={() => setUpdateDismissed(true)} className="p-1 text-stage-muted hover:text-stage-text" aria-label="Dismiss">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
