@@ -4,8 +4,11 @@ import { ArrowLeft, BookmarkCheck, ExternalLink, Info, Library, Loader2, Mic, Mi
 import { AboutModal } from './components/AboutModal';
 import { Tuner } from './components/Tuner';
 import { IntroCard } from './components/IntroCard';
+import { PlayAlongBar } from './components/PlayAlongBar';
+import { useRhythm } from './lib/useRhythm';
+import type { LineRef, TokenRef } from './lib/songTiming';
 import { suggestIntros } from './lib/intro';
-import { ChordProViewer } from './components/ChordProViewer';
+import { ChordProViewer, type LengthEdit } from './components/ChordProViewer';
 import { parseChordPro, transposeParsedSong } from './lib/chordParser';
 import { keyPrefersFlats } from './lib/chordTransposer';
 import { applyThemeToDOM, CHORD_COLORS } from './lib/themeManager';
@@ -159,6 +162,16 @@ export default function App() {
 
   const intros = useMemo(() => (shown ? suggestIntros(shown) : []), [shown]);
 
+  const rhythm = useRhythm(shown?.metadata.time);
+  const [active, setActive] = useState<TokenRef | null>(null);
+  const [follow, setFollow] = useState(true);
+  const [lengthEdit, setLengthEdit] = useState<LengthEdit | undefined>();
+  const [startLine, setStartLine] = useState<LineRef | null>(null);
+  useEffect(() => {
+    setActive(null);
+    setStartLine(null);
+  }, [viewing?.sourceId]);
+
   if (viewing && shown) {
     const saved = savedIds.has(viewing.sourceId);
     return (
@@ -191,10 +204,33 @@ export default function App() {
             </span>
           )}
         </div>
-        <IntroCard key={viewing.sourceId} options={intros} time={shown.metadata.time} capo={shown.metadata.capo} keyHint={shown.metadata.key} />
+        <IntroCard key={viewing.sourceId} options={intros} capo={shown.metadata.capo} keyHint={shown.metadata.key} rhythm={rhythm} />
         <div className="flex-1 min-h-0">
-          <ChordProViewer song={shown} zoomLevel={1} columnsPreference={1} />
+          <ChordProViewer
+            song={shown}
+            zoomLevel={1}
+            columnsPreference={1}
+            activeToken={active}
+            startLine={startLine}
+            follow={follow}
+            lengthEdit={lengthEdit}
+            onLineTap={(s, l) => setStartLine((cur) => (cur && cur.s === s && cur.l === l ? null : { s, l }))}
+          />
         </div>
+        <PlayAlongBar
+          key={viewing.sourceId}
+          songId={String(viewing.sourceId)}
+          song={shown}
+          rhythm={rhythm}
+          capo={shown.metadata.capo}
+          keyHint={shown.metadata.key}
+          startLine={startLine}
+          onClearStart={() => setStartLine(null)}
+          follow={follow}
+          onFollowChange={setFollow}
+          onActive={setActive}
+          onLengthEdit={setLengthEdit}
+        />
       </div>
     );
   }

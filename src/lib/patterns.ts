@@ -144,10 +144,11 @@ export function buildPhrase(chords: string[], pattern: Pattern, repeat = 1, capo
     });
 
     // A fill takes over the last slots of the bar; the earlier slots keep the pattern
-    const atEnd = fill?.where === 'every' || bar % chords.length === chords.length - 1;
+    const song = Boolean(fill?.bars); // a whole song ends instead of looping back to its first chord
+    const atEnd = fill?.bars ? fill.bars.has(bar) : fill?.where === 'every' || bar % chords.length === chords.length - 1;
     const nextIndex = (bar + 1) % sequence.length;
     const fillRun =
-      fill && key && atEnd
+      fill && key && atEnd && !(song && bar + 1 >= sequence.length)
         ? fillNotes(fill.style, { chord: sequence[bar], next: sequence[nextIndex], shape, nextShape: shapes[nextIndex], key, slots: slotsPerBeat, bar })
         : [];
     const firstFillStep = pattern.steps.length - fillRun.length;

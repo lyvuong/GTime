@@ -64,9 +64,24 @@ export function playPhrase(phrase: Phrase, { bpm, onBar, onEnd }: PlayOptions): 
       }
     });
     ctx.close().catch(() => {});
+    releaseAudio(stop);
     onEnd?.();
   };
+  claimAudio(stop);
   // Let the last note ring out, then clean up
   timers.push(window.setTimeout(stop, 100 + phrase.bars * barSeconds * 1000 + 1200));
   return stop;
+}
+
+// Only one thing plays at a time: starting something stops whatever was playing before it
+let currentStop: (() => void) | null = null;
+
+export function claimAudio(stop: () => void): void {
+  const previous = currentStop;
+  currentStop = stop;
+  if (previous && previous !== stop) previous();
+}
+
+export function releaseAudio(stop: () => void): void {
+  if (currentStop === stop) currentStop = null;
 }

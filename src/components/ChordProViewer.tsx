@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
+import React, { createContext, useContext, useRef, useEffect, useLayoutEffect, useState } from 'react';
 import type { ParsedSong, SongSection, SongLine, ChordToken } from '../lib/chordParser';
 
 interface ChordProViewerProps {
@@ -11,6 +11,12 @@ interface ChordProViewerProps {
   themeStyle?: string;
   chordColor?: string;
   onChordClick?: (chord: string) => void;
+  // Play-along: the chord that is sounding, the line playback will start from, and whether to scroll with it
+  activeToken?: { s: number; l: number; t: number } | null;
+  startLine?: { s: number; l: number } | null;
+  follow?: boolean;
+  onLineTap?: (s: number, l: number) => void;
+  lengthEdit?: LengthEdit;
 }
 
 const MIN_FIT_REM = 0.5;
@@ -26,6 +32,11 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
   isAutoScrolling = false,
   chordColor,
   onChordClick,
+  activeToken = null,
+  startLine = null,
+  follow = false,
+  onLineTap,
+  lengthEdit,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -110,6 +121,13 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
     }
   }, [song.metadata.title, song.metadata.key]);
 
+  // Follow the line that is sounding, keeping it in the middle of the screen
+  const activeLine = activeToken ? `${activeToken.s}-${activeToken.l}` : null;
+  useEffect(() => {
+    if (!follow || !activeLine) return;
+    containerRef.current?.querySelector(`[data-line="${activeLine}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [follow, activeLine]);
+
   // Auto that fits -> fixed one-screen layout; otherwise (1 Col, auto-scrolling, or too long) -> scrolling column
   const fitted = columnsPreference === 'auto' && !isAutoScrolling ? fit : null;
   const activeColumns = fitted ? fitted.columns : 1;
@@ -179,15 +197,21 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
           columnFill: 'balance',
         }}
       >
+        <LengthContext.Provider value={lengthEdit ?? NO_LENGTHS}>
         {song.sections.map((section, secIdx) => (
           <SectionView
             allowSplit={Boolean(fitted?.split)}
             key={`sec-${secIdx}`}
+            secIdx={secIdx}
             section={section}
             chordColor={chordColor}
             onChordClick={onChordClick}
+            activeToken={activeToken}
+            startLine={startLine}
+            onLineTap={onLineTap}
           />
         ))}
+        </LengthContext.Provider>
       </div>
     </div>
   );
@@ -195,10 +219,14 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
 
 const SectionView: React.FC<{
   allowSplit?: boolean;
+  secIdx: number;
   section: SongSection;
   chordColor?: string;
   onChordClick?: (chord: string) => void;
-}> = ({ allowSplit, section, chordColor, onChordClick }) => {
+  activeToken: { s: number; l: number; t: number } | null;
+  startLine: { s: number; l: number } | null;
+  onLineTap?: (s: number, l: number) => void;
+}> = ({ allowSplit, secIdx, section, chordColor, onChordClick, activeToken, startLine, onLineTap }) => {
   const isChorus = section.type === 'chorus';
   const isBridge = section.type === 'bridge';
 
@@ -237,6 +265,10 @@ const SectionView: React.FC<{
           <LineView
             key={`line-${lIdx}`}
             line={line}
+            lineId={`${secIdx}-${lIdx}`}
+            activeTok={activeToken && activeToken.s === secIdx && activeToken.l === lIdx ? activeToken.t : null}
+            isStart={Boolean(startLine && startLine.s === secIdx && startLine.l === lIdx)}
+            onTap={onLineTap ? () => onLineTap(secIdx, lIdx) : undefined}
             chordColor={chordColor}
             onChordClick={onChordClick}
           />
@@ -248,9 +280,13 @@ const SectionView: React.FC<{
 
 const LineView: React.FC<{
   line: SongLine;
+  lineId: string;
+  activeTok: number | null; // the token that is sounding on this line, if any
+  isStart: boolean; // playback will start from this line
+  onTap?: () => void;
   chordColor?: string;
   onChordClick?: (chord: string) => void;
-}> = ({ line, chordColor, onChordClick }) => {
+}> = ({ line, lineId, activeTok, isStart, onTap, chordColor, onChordClick }) => {
   if (line.type === 'comment') {
     return (
       <div className="my-[0.4em] px-[0.6em] py-[0.25em] rounded bg-amber-500/10 border-l-2 border-amber-500 text-amber-800 dark:text-amber-200 font-semibold text-[0.85em] font-mono italic">
@@ -264,10 +300,18 @@ const LineView: React.FC<{
   }
 
   return (
-    <div className="break-inside-avoid flex flex-wrap items-end leading-tight tracking-normal font-sans group">
+    <div
+      data-line={lineId}
+      onClick={onTap}
+      className={`break-inside-avoid flex flex-wrap items-end leading-tight tracking-normal font-sans group rounded-md transition-colors ${
+        onTap ? 'cursor-pointer' : ''
+      } ${activeTok !== null ? 'bg-stage-accent/10' : ''} ${isStart ? 'border-l-2 border-sky-400 pl-1' : ''}`}
+    >
       {line.tokens?.map((token, tIdx) => (
         <TokenView
           key={`tok-${tIdx}`}
+          tokenId={`${lineId}-${tIdx}`}
+          active={activeTok === tIdx}
           token={token}
           chordColor={chordColor}
           onChordClick={onChordClick}
@@ -277,12 +321,24 @@ const LineView: React.FC<{
   );
 };
 
+// Chord lengths set by hand ("s-l-t" -> label), and the picker used while editing them
+export interface LengthEdit {
+  labels: Map<string, string>;
+  onPick: ((id: string) => void) | null; // null: just show the labels
+}
+const NO_LENGTHS: LengthEdit = { labels: new Map(), onPick: null };
+const LengthContext = createContext<LengthEdit>(NO_LENGTHS);
+
 const TokenView: React.FC<{
   token: ChordToken;
+  tokenId: string;
+  active?: boolean;
   chordColor?: string;
   onChordClick?: (chord: string) => void;
-}> = ({ token, chordColor, onChordClick }) => {
+}> = ({ token, tokenId, active = false, chordColor, onChordClick }) => {
   const hasChord = Boolean(token.chord && token.chord.trim().length > 0);
+  const { labels, onPick } = useContext(LengthContext);
+  const lengthLabel = labels.get(tokenId);
 
   return (
     <div className="inline-flex flex-col items-start min-w-[0.5em] max-w-full align-top mr-[0.15em] relative">
@@ -290,13 +346,21 @@ const TokenView: React.FC<{
       <div className="min-h-[1.25em] flex items-center">
         {hasChord ? (
           <button
-            onClick={() => token.chord && onChordClick?.(token.chord)}
+            onClick={(e) => {
+              if (onPick) {
+                e.stopPropagation(); // editing a length, not choosing a start line
+                onPick(tokenId);
+              } else if (token.chord) onChordClick?.(token.chord);
+            }}
             type="button"
-            className="font-mono font-black text-[0.95em] tracking-tight hover:opacity-80 hover:underline cursor-pointer select-none whitespace-nowrap px-0.5 rounded transition-colors"
+            className={`font-mono font-black text-[0.95em] tracking-tight hover:opacity-80 hover:underline cursor-pointer select-none whitespace-nowrap px-0.5 rounded transition-colors ${
+              active ? 'bg-stage-accent text-slate-950 ring-1 ring-stage-accent' : ''
+            } ${onPick ? 'outline outline-1 outline-dashed outline-sky-400/70' : ''}`}
             style={{ color: chordColor || 'rgb(var(--color-stage-accent))' }}
-            title={`Chord: ${token.chord}`}
+            title={onPick ? `${token.chord}: tap to change how long it lasts` : `Chord: ${token.chord}`}
           >
             {token.chord}
+            {lengthLabel && <sup className="ml-0.5 text-[0.6em] font-bold text-sky-300">{lengthLabel}</sup>}
           </button>
         ) : (
           <span className="invisible text-[0.95em] font-mono select-none">&nbsp;</span>

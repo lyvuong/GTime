@@ -9,6 +9,7 @@ export interface FillOptions {
   style: FillStyle;
   where: FillWhere;
   keyHint?: string; // the key written on the sheet, if any
+  bars?: Set<number>; // for a whole song: exactly which bars get a fill (the song does not loop back to its start)
 }
 
 export const FILLS: { id: FillStyle; name: string; desc: string }[] = [
