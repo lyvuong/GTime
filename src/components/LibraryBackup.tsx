@@ -44,8 +44,9 @@ export function LibraryBackup() {
 
   const toDrive = () =>
     run(async () => {
-      if (!clientId) throw new Error('Paste a Google OAuth Client ID first.');
-      const token = await requestAccessToken(clientId);
+      const id = clientId || (await loadClientId());
+      if (!id) throw new Error('Paste a Google OAuth Client ID first.');
+      const token = await requestAccessToken(id);
       const { text, songs } = await exportBackup();
       await uploadBackup(token, text);
       return `Saved ${songs} song${songs === 1 ? '' : 's'} to your Google Drive as GTime-library.json.`;
@@ -53,8 +54,9 @@ export function LibraryBackup() {
 
   const fromDrive = () =>
     run(async () => {
-      if (!clientId) throw new Error('Paste a Google OAuth Client ID first.');
-      const token = await requestAccessToken(clientId);
+      const id = clientId || (await loadClientId());
+      if (!id) throw new Error('Paste a Google OAuth Client ID first.');
+      const token = await requestAccessToken(id);
       const found = await downloadBackup(token);
       if (!found) return 'No GTime backup found in your Google Drive yet. Use "Save to Drive" on the device that has your songs.';
       return finish(await importBackup(found.text));

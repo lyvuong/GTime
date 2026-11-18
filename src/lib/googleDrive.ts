@@ -16,13 +16,18 @@ export function resolveClientId(): string {
 }
 
 /** The Client ID set in Cloudflare (served by the Worker at /api/config), or the build-time or pasted-in one. */
-let fromServer: Promise<string> | null = null;
-export function loadClientId(): Promise<string> {
-  fromServer ??= fetch('/api/config')
-    .then((r) => (r.ok ? r.json() : null))
-    .then((c) => (typeof c?.googleClientId === 'string' ? c.googleClientId.trim() : ''))
-    .catch(() => '');
-  return fromServer.then((id) => id || resolveClientId());
+let fromServer = '';
+export async function loadClientId(): Promise<string> {
+  if (!fromServer) {
+    try {
+      const r = await fetch('/api/config', { cache: 'no-store' });
+      const c = r.ok ? await r.json() : null;
+      if (typeof c?.googleClientId === 'string') fromServer = c.googleClientId.trim(); // an empty answer is not kept, so it is asked again
+    } catch {
+      /* offline or no Worker (local dev): fall back below */
+    }
+  }
+  return fromServer || resolveClientId();
 }
 
 export const hasBuiltInClientId = (): boolean => Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim());
