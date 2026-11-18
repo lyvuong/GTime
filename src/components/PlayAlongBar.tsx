@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronUp, CircleHelp, Ruler, Pause, Play, Square, X } from 'lucide-react';
+import { ChevronUp, CircleHelp, Music2, Ruler, Pause, Play, Square, X } from 'lucide-react';
 import type { ParsedSong } from '../lib/chordParser';
 import { FILLS, type FillStyle } from '../lib/fills';
 import { playAlong, type PlayAlongLive } from '../lib/playAlong';
@@ -349,6 +349,16 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
             <span className="text-stage-muted font-semibold text-xs">Tap a line to start there</span>
           )}
         </div>
+        {intro && (
+          <button
+            onClick={() => setWithIntro((w) => !w)}
+            aria-pressed={withIntro}
+            title={withIntro ? `The song starts with the intro (${intro.label}). Tap to turn off.` : 'Tap to play the chosen intro before the song.'}
+            className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 ${withIntro ? 'bg-sky-400/20 border-sky-400 text-sky-300' : 'border-stage-border text-stage-muted'}`}
+          >
+            <Music2 className="w-3.5 h-3.5" /> Intro {withIntro ? 'on' : 'off'}
+          </button>
+        )}
         <button onClick={() => setHelpOpen(true)} className="p-1.5 rounded-lg text-stage-muted hover:text-sky-300" aria-label="How Play along works" title="How Play along works">
           <CircleHelp className="w-4 h-4" />
         </button>

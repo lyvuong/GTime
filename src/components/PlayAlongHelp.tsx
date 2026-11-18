@@ -9,7 +9,7 @@ const STEPS: [string, string][] = [
   ['Chord lengths', 'The app guesses how long each chord lasts from the words under it, about five words to a bar. When it sounds wrong, open the settings (the arrow), tap "Set chord lengths", then tap a chord to cycle ¼ bar, ½ bar, 1 bar, 2 bars, then back to automatic. Short chords share a bar. Your changes are saved with the song in your library.'],
   ['Fills', "A fill is a short run of notes that joins one chord to the next. Song fills are longer than the intro's: by default they go at the end of each sung line, where the singer rests. You can move them to the end of each paragraph or to every chord change, or turn them off."],
   ['Loop this paragraph', 'Repeats the paragraph that is playing (a verse or the chorus) until you switch it off. Use it to practise a part that is hard to play or sing.'],
-  ['Include the intro', 'Choose an intro in "Intro ideas", then tick "Play the intro first" so the song starts with it.'],
+  ['Include the intro', 'Choose an intro in "Intro ideas", then switch on "Intro" next to the Play along button so the song starts with it (the same switch is in the settings). The count-in comes first, then the intro, then the song.'],
   ['Pause, resume, tempo', 'Pause keeps your place. Changing the rhythm, tempo, fills, transposing or chord lengths while playing carries on from the same bar. Click adds a metronome click on every beat.'],
 ];
 
