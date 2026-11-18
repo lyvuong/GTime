@@ -200,7 +200,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
               <p className="flex items-start gap-1.5 text-emerald-500 dark:text-emerald-400">
                 <ShieldCheck className="w-3.5 h-3.5 mt-px flex-shrink-0" />
                 <span>
-                  No accounts and no tracking. Your library is stored only in your browser (IndexedDB) and never leaves your device.
+                  No accounts and no tracking. Your library is stored only in your browser (IndexedDB) and never leaves your device unless you export it to a file yourself.
                   The tuner uses your microphone only while it is switched on. Sound is analysed on your device and is never recorded or sent
                   anywhere.
                 </span>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowLeft, BookmarkCheck, ExternalLink, Info, Library, Loader2, Mic, Minus, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react';
 import { AboutModal } from './components/AboutModal';
+import { LibraryBackup } from './components/LibraryBackup';
 import { Tuner } from './components/Tuner';
 import { IntroCard } from './components/IntroCard';
 import { PlayAlongBar } from './components/PlayAlongBar';
@@ -397,6 +398,7 @@ export default function App() {
                 </button>
               </div>
             ))}
+            <LibraryBackup />
           </>
         )}
       </main>
