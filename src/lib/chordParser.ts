@@ -1,4 +1,4 @@
-import { transposeChord } from './chordTransposer';
+import { transposeChord } from './chordTransposer.ts';
 
 export interface ChordToken {
   type: 'chord_lyric';

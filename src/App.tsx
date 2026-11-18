@@ -3,6 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowLeft, BookmarkCheck, ExternalLink, Info, Library, Loader2, Mic, Minus, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react';
 import { AboutModal } from './components/AboutModal';
 import { Tuner } from './components/Tuner';
+import { IntroCard } from './components/IntroCard';
+import { suggestIntros } from './lib/intro';
 import { ChordProViewer } from './components/ChordProViewer';
 import { parseChordPro, transposeParsedSong } from './lib/chordParser';
 import { keyPrefersFlats } from './lib/chordTransposer';
@@ -155,6 +157,8 @@ export default function App() {
     return transposeParsedSong(parsed, semitones, flats);
   }, [parsed, semitones]);
 
+  const intros = useMemo(() => (shown ? suggestIntros(shown) : []), [shown]);
+
   if (viewing && shown) {
     const saved = savedIds.has(viewing.sourceId);
     return (
@@ -187,6 +191,7 @@ export default function App() {
             </span>
           )}
         </div>
+        <IntroCard key={viewing.sourceId} options={intros} />
         <div className="flex-1 min-h-0">
           <ChordProViewer song={shown} zoomLevel={1} columnsPreference={1} />
         </div>

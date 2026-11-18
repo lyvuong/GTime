@@ -15,6 +15,7 @@ import {
   Server,
   GitBranch,
   Music,
+  Music2,
   Mic,
   Info,
   Globe,
@@ -44,6 +45,12 @@ const FEATURES = [
     tint: 'bg-amber-500/10 text-amber-400',
     title: 'Real-Time Transposition',
     body: 'Shift the key up or down by semitones, with sharp and flat spelling that follows the song’s key.',
+  },
+  {
+    icon: Music2,
+    tint: 'bg-sky-500/10 text-sky-400',
+    title: 'Intro Ideas',
+    body: 'Open “Intro ideas” on any song for ways to start it: the verse loop, a turnaround, or a chorus hook, worked out from the song’s own chords and following your transposition.',
   },
   {
     icon: Library,
