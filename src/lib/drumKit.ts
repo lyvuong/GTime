@@ -54,7 +54,7 @@ function burst(rate: number, seconds: number, decay: number, seed: number): Floa
 export function renderDrum(kind: DrumKind, rate: number): Float32Array<ArrayBuffer> {
   let w: Float32Array<ArrayBuffer>;
   switch (kind) {
-    case 'K': w = mix(tone(rate, 0.35, 150, 48, 11), brighten(burst(rate, 0.012, 300, 7), 1), 0.35); break;
+    case 'K': w = mix(tone(rate, 0.3, 190, 65, 10), brighten(burst(rate, 0.015, 250, 7), 1), 0.7); break; // the fundamental stays above 60 Hz and the click adds a knock, so small speakers still play it
     case 'S': w = mix(brighten(burst(rate, 0.22, 20, 11), 1), tone(rate, 0.12, 210, 170, 28), 0.55); break;
     case 'R': w = mix(tone(rate, 0.05, 1750, 1650, 90), brighten(burst(rate, 0.02, 200, 5), 1), 0.4); break;
     case 'H': w = brighten(burst(rate, 0.07, 70, 13), 2); break;
@@ -68,6 +68,10 @@ export function renderDrum(kind: DrumKind, rate: number): Float32Array<ArrayBuff
   for (let i = 0; i < fade; i++) w[w.length - 1 - i] *= i / fade;
   return w;
 }
+
+// With drums on, the guitar steps back and the drums come forward, so the beat can be heard
+export const GUITAR_WITH_DRUMS = 0.3;
+export const DRUM_BOOST = 1.5;
 
 /** Buffers for the drums a part uses (browser only). */
 export function drumBuffers(ctx: BaseAudioContext, drums: DrumEvent[]): Map<DrumKind, AudioBuffer> {

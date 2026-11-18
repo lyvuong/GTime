@@ -81,3 +81,10 @@ test('line ends are the last bar before the next line starts', () => {
   assert.deepEqual(t.spans.map((s) => s.bars), [1, 2, 1, 1]);
   assert.deepEqual(t.lineEnds, [2, 3]); // G rings through bar 2; Am is bar 3; F (the last line) has no fill
 });
+
+test('a chord can last a bar and a half, and the next chord starts half-way through the second bar', () => {
+  const t = songTiming(parseChordPro('{title: x}\n\n[C]a b c d e [G]f g h i j [Am]k\n'), 'auto', 5, new Map([['0-0-0', 6]]));
+  assert.deepEqual(t.segments.map((s) => [s.chord, s.bar, s.from, s.to]), [
+    ['C', 0, 0, 4], ['C', 1, 0, 2], ['G', 1, 2, 4], ['G', 2, 0, 2], ['Am', 2, 2, 4], ['Am', 3, 0, 4],
+  ]);
+});

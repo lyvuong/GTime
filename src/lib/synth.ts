@@ -1,6 +1,6 @@
 // Plays a phrase through Web Audio using plucked-string notes. Browser only.
 import type { Phrase } from './patterns';
-import { drumBuffers } from './drumKit';
+import { DRUM_BOOST, drumBuffers, GUITAR_WITH_DRUMS } from './drumKit';
 import { renderPluck } from './pluck';
 
 export interface PlayOptions {
@@ -17,6 +17,7 @@ export function playPhrase(phrase: Phrase, { bpm, onBar, onEnd }: PlayOptions): 
   const master = ctx.createGain();
   master.gain.value = 0.7;
   const limiter = ctx.createDynamicsCompressor(); // a strum stacks six notes; keep it from clipping
+  limiter.attack.value = 0.002; // catch the first hit of a loud strum or drum
   master.connect(limiter).connect(ctx.destination);
 
   const barSeconds = (60 / bpm) * phrase.beats;
@@ -41,7 +42,7 @@ export function playPhrase(phrase: Phrase, { bpm, onBar, onEnd }: PlayOptions): 
     const src = ctx.createBufferSource();
     src.buffer = bufferFor(e.midi);
     const gain = ctx.createGain();
-    gain.gain.value = e.gain;
+    gain.gain.value = e.gain * ((phrase.drums?.length ?? 0) > 0 ? GUITAR_WITH_DRUMS : 1);
     src.connect(gain).connect(master);
     src.start(t0 + e.bar * barSeconds + e.step * stepSeconds + e.order * STRUM_SPREAD);
     sources.push(src);
@@ -54,7 +55,7 @@ export function playPhrase(phrase: Phrase, { bpm, onBar, onEnd }: PlayOptions): 
     const src = ctx.createBufferSource();
     src.buffer = kit.get(d.kind)!;
     const gain = ctx.createGain();
-    gain.gain.value = d.gain;
+    gain.gain.value = d.gain * DRUM_BOOST;
     src.connect(gain).connect(master);
     src.start(t0 + d.bar * barSeconds + d.step * stepSeconds);
     sources.push(src);

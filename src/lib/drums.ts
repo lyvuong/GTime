@@ -55,7 +55,7 @@ const GROOVES: Record<string, Groove> = {
   boston: WALTZ.soft,
 };
 
-const BASE: Record<DrumKind, number> = { K: 0.95, S: 0.6, R: 0.45, H: 0.22, T: 0.6, C: 0.55 };
+const BASE: Record<DrumKind, number> = { K: 1.7, S: 1.25, R: 0.95, H: 0.6, T: 1.2, C: 0.95 }; // drums need to be well above the guitar to be heard on small speakers
 
 /**
  * Adds a drum part to a phrase. A "light" part keeps the kick and swaps the snare for a soft rim click,

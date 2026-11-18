@@ -2,7 +2,7 @@
 // are scheduled a little ahead of the clock instead of all at once, and playback can start part-way
 // through, loop one paragraph, and report which bar is sounding so the sheet can follow along.
 import type { NoteEvent, Phrase } from './patterns';
-import { drumBuffers } from './drumKit';
+import { DRUM_BOOST, drumBuffers, GUITAR_WITH_DRUMS } from './drumKit';
 import type { DrumEvent } from './drums';
 import { renderPluck } from './pluck';
 import { claimAudio, releaseAudio } from './synth';
@@ -36,6 +36,7 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
   const master = ctx.createGain();
   master.gain.value = live.volume;
   const limiter = ctx.createDynamicsCompressor();
+  limiter.attack.value = 0.002; // catch the first hit of a loud strum or drum
   master.connect(limiter).connect(ctx.destination);
 
   const beatSeconds = 60 / bpm;
@@ -53,7 +54,9 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
   }
   // The drum part has its own level, so it can be turned up or down while it plays
   const drumMaster = ctx.createGain();
-  drumMaster.gain.value = live.drums;
+  const hasDrums = (phrase.drums?.length ?? 0) > 0;
+  const guitarLevel = hasDrums ? GUITAR_WITH_DRUMS : 1;
+  drumMaster.gain.value = live.drums * DRUM_BOOST;
   drumMaster.connect(master);
   const kit = drumBuffers(ctx, phrase.drums ?? []);
   const drumsByBar = new Map<number, DrumEvent[]>();
@@ -79,7 +82,7 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
     const src = ctx.createBufferSource();
     src.buffer = buffers.get(e.midi)!;
     const gain = ctx.createGain();
-    gain.gain.value = e.gain;
+    gain.gain.value = e.gain * guitarLevel;
     src.connect(gain).connect(master);
     src.start(when);
     track(src);
@@ -153,7 +156,7 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
   const tick = () => {
     if (stopped) return;
     master.gain.value = live.volume;
-    drumMaster.gain.value = live.drums;
+    drumMaster.gain.value = live.drums * DRUM_BOOST;
     while (!done && t < ctx.currentTime + LOOKAHEAD) scheduleBar();
     const now = ctx.currentTime;
     while (log.length > 1 && log[1].time <= now) log.shift();

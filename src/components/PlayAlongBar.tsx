@@ -28,8 +28,8 @@ interface Props {
   onLengthEdit: (edit: LengthEdit) => void; // lets the sheet show and pick chord lengths
 }
 
-const CYCLE = [undefined, 1, 2, 4, 8]; // auto, a quarter, a half, one bar, two bars (in quarters of a bar)
-const LABEL: Record<number, string> = { 1: '¼', 2: '½', 4: '1', 8: '2' };
+const CYCLE = [undefined, 1, 2, 3, 4, 6, 8]; // auto, then ¼ ½ ¾ 1 1½ 2 bars (counted in quarters of a bar)
+const LABEL: Record<number, string> = { 1: '¼', 2: '½', 3: '¾', 4: '1', 6: '1½', 8: '2' };
 
 export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, startLine, onClearStart, follow, onFollowChange, onActive, onLengthEdit }: Props) {
   const { pattern, bpm, songFill, songFillWhere, drums } = rhythm;
@@ -297,7 +297,7 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
               <Ruler className="w-3.5 h-3.5" /> {editing ? 'Done setting lengths' : 'Set chord lengths'}
             </button>
             {editing ? (
-              <span>Tap a chord in the song: ¼ → ½ → 1 → 2 bars → auto.</span>
+              <span>Tap a chord in the song: ¼ → ½ → ¾ → 1 → 1½ → 2 bars → auto.</span>
             ) : (
               lengths.size > 0 && (
                 <button onClick={() => changeLengths(new Map())} className="underline">
