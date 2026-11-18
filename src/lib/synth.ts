@@ -18,8 +18,8 @@ export function playPhrase(phrase: Phrase, { bpm, onBar, onEnd }: PlayOptions): 
   const limiter = ctx.createDynamicsCompressor(); // a strum stacks six notes; keep it from clipping
   master.connect(limiter).connect(ctx.destination);
 
-  const eighth = 30 / bpm;
-  const barSeconds = phrase.stepsPerBar * eighth;
+  const barSeconds = (60 / bpm) * phrase.beats;
+  const stepSeconds = barSeconds / phrase.stepsPerBar; // an eighth in 4/4, a triplet eighth in 12/8
   const t0 = ctx.currentTime + 0.1;
 
   const buffers = new Map<number, AudioBuffer>();
@@ -42,7 +42,7 @@ export function playPhrase(phrase: Phrase, { bpm, onBar, onEnd }: PlayOptions): 
     const gain = ctx.createGain();
     gain.gain.value = e.gain;
     src.connect(gain).connect(master);
-    src.start(t0 + (e.bar * phrase.stepsPerBar + e.step) * eighth + e.order * STRUM_SPREAD);
+    src.start(t0 + e.bar * barSeconds + e.step * stepSeconds + e.order * STRUM_SPREAD);
     sources.push(src);
   }
 

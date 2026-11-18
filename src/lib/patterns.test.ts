@@ -1,14 +1,73 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPhrase, patternsFor, tabBars } from './patterns.ts';
+import { buildPhrase, countLabels, PATTERNS, patternsFor, strokeGlyph, tabBars } from './patterns.ts';
 
-const arp = patternsFor('4/4').find((p) => p.id === 'arpeggio')!;
-const pop = patternsFor('4/4').find((p) => p.id === 'pop-strum')!;
+const byId = (id: string) => PATTERNS.find((p) => p.id === id)!;
+const arp = byId('arpeggio');
+const pop = byId('pop-strum');
 
-test('time signature chooses eight or six slots per bar', () => {
-  assert.ok(patternsFor('4/4').every((p) => p.steps.length === 8));
-  assert.ok(patternsFor(undefined).every((p) => p.steps.length === 8));
-  for (const t of ['3/4', '6/8']) assert.ok(patternsFor(t).every((p) => p.steps.length === 6), t);
+test('every pattern is well formed', () => {
+  assert.equal(new Set(PATTERNS.map((p) => p.id)).size, PATTERNS.length, 'ids are unique');
+  for (const p of PATTERNS) {
+    assert.ok([3, 4].includes(p.beats), p.id);
+    assert.ok(p.steps.length % p.beats === 0, `${p.id}: slots divide evenly into beats`);
+    assert.ok([6, 8, 12].includes(p.steps.length), `${p.id}: ${p.steps.length} slots`);
+    assert.equal(p.steps[0] === null, false, `${p.id}: starts on the downbeat`);
+    assert.ok(p.bpm >= 40 && p.bpm <= 160, p.id);
+  }
+});
+
+test('every pattern has a description and a count that matches its slots', () => {
+  for (const p of PATTERNS) {
+    assert.ok(p.desc.length > 30, `${p.id} needs a description`);
+    assert.equal(countLabels(p).length, p.steps.length, p.id);
+  }
+  assert.deepEqual(countLabels(byId('bolero')), ['1', '&', '2', '&', '3', '&', '4', '&']);
+  assert.deepEqual(countLabels(byId('slow-rock')).slice(0, 6), ['1', 'la', 'li', '2', 'la', 'li']);
+  assert.deepEqual(countLabels(byId('valse')), ['1', '&', '2', '&', '3', '&']);
+  assert.deepEqual(byId('bolero').steps.map(strokeGlyph), ['B', '·', '↓', '↓', 'b', '·', '↓', '↓']);
+});
+
+test('the style list covers the requested rhythms', () => {
+  for (const id of ['bolero', 'slow-rock', 'valse', 'bossa-nova', 'rumba', 'cha-cha', 'tango', 'ballad', 'boston']) assert.ok(byId(id), id);
+});
+
+test('the song\'s time signature decides which patterns come first, but every pattern is offered', () => {
+  assert.equal(patternsFor('4/4')[0].id, 'arpeggio');
+  assert.equal(patternsFor(undefined)[0].id, 'arpeggio');
+  for (const t of ['3/4', '6/8']) assert.equal(patternsFor(t)[0].beats, 3, t);
+  assert.equal(patternsFor('3/4').length, PATTERNS.length);
+});
+
+test('every pattern plays every kind of chord, using only real strings, notes and gains', () => {
+  for (const p of PATTERNS) {
+    for (const chord of ['C', 'D', 'G', 'Am', 'F#m7', 'Bb', 'Cmaj7']) {
+      const { events, stepsPerBar } = buildPhrase([chord], p);
+      assert.ok(events.length > 0, `${p.id} on ${chord} is silent`);
+      for (const e of events) {
+        assert.ok(e.string >= 0 && e.string <= 5 && e.fret >= 0, `${p.id} ${chord}`);
+        assert.ok(e.step >= 0 && e.step < stepsPerBar);
+        assert.ok(e.gain > 0 && e.gain <= 1);
+      }
+    }
+  }
+});
+
+test('a rhythm\'s chord hit leaves out the bass string, and its bass note is the lowest', () => {
+  const { events } = buildPhrase(['G'], byId('bolero')); // G is x6 strings: low E is the bass
+  const bass = events.filter((e) => e.step === 0);
+  assert.deepEqual(bass.map((e) => e.string), [0]);
+  const chord = events.filter((e) => e.step === 2);
+  assert.ok(chord.length >= 3 && chord.every((e) => e.string > 0), 'the chord hit skips the low string');
+  // A four-string chord keeps three strings in the hit
+  assert.equal(buildPhrase(['D'], byId('bolero')).events.filter((e) => e.step === 2).length, 3);
+});
+
+test('the bars last as long as their beats say, whatever the number of slots', () => {
+  assert.equal(buildPhrase(['C'], byId('slow-rock')).beats, 4);
+  assert.equal(buildPhrase(['C'], byId('slow-rock')).stepsPerBar, 12);
+  assert.equal(buildPhrase(['C'], byId('valse')).beats, 3);
+  assert.equal(buildPhrase(['C'], arp).stepsPerBar, 8);
 });
 
 test('an arpeggio plays one string per slot, bass first, in the right pitch', () => {

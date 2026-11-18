@@ -50,7 +50,7 @@ const FEATURES = [
     icon: Music2,
     tint: 'bg-sky-500/10 text-sky-400',
     title: 'Intro Ideas',
-    body: 'Open “Intro ideas” on any song for ways to start it: the verse loop, a turnaround, or a chorus hook, worked out from the song’s own chords and following your transposition. Pick an arpeggio or strum pattern to see it as guitar tab, then press Play to hear it at the tempo you choose.',
+    body: 'Open “Intro ideas” on any song for ways to start it: the verse loop, a turnaround, or a chorus hook, worked out from the song’s own chords and following your transposition. Pick a picking pattern or a rhythm (Bolero, Slow Rock, Bossa Nova, Rumba, Tango, Valse, Cha Cha and more) to see it as guitar tab, then press Play to hear it at the tempo you choose. The ? button opens a rhythm guide that explains how each one sounds and lets you listen.',
   },
   {
     icon: Library,
