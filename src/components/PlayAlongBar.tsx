@@ -154,6 +154,7 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
     };
     stopRef.current = playAlong(phrase, {
       bpm,
+      instrument: rhythm.instrument,
       startBar: from,
       loop,
       countIn: withCountIn,
@@ -208,7 +209,7 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
     }
     if (state === 'playing') start(Math.min(barRef.current, Math.max(0, phrase.bars - 1)), false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phrase, bpm, loopBlock]);
+  }, [phrase, bpm, loopBlock, rhythm.instrument]);
 
   // Silence when leaving the song
   useEffect(

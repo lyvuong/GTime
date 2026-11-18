@@ -2,10 +2,10 @@
 // are scheduled a little ahead of the clock instead of all at once, and playback can start part-way
 // through, loop one paragraph, and report which bar is sounding so the sheet can follow along.
 import type { NoteEvent, Phrase } from './patterns';
-import { DRUM_BOOST, drumBuffers, GUITAR_WITH_DRUMS } from './drumKit';
+import { DRUM_BOOST, drumBuffers, drumBus, drumKey, GUITAR_WITH_DRUMS } from './drumKit';
 import type { DrumEvent } from './drums';
-import { renderPluck } from './pluck';
-import { claimAudio, releaseAudio } from './synth';
+import { LEVEL, noteSeconds, renderNote, type Instrument } from './instruments';
+import { claimAudio, makeLimiter, releaseAudio } from './synth';
 
 export interface PlayAlongLive {
   volume: number; // 0 to 1, read as the track plays
@@ -15,6 +15,7 @@ export interface PlayAlongLive {
 
 export interface PlayAlongOptions {
   bpm: number;
+  instrument?: Instrument;
   startBar: number;
   loop: { start: number; end: number } | null; // repeat these bars (end exclusive)
   countIn: boolean;
@@ -30,14 +31,13 @@ const STRUM_SPREAD = 0.014;
 
 export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
   const { bpm, startBar, loop, countIn, live, onBar, onEnd } = opts;
+  const instrument = opts.instrument ?? 'guitar';
   const cuesByBar = new Map<number, number[]>();
   for (const c of opts.cues ?? []) cuesByBar.set(c.bar, [...(cuesByBar.get(c.bar) ?? []), c.quarter]);
   const ctx = new AudioContext();
   const master = ctx.createGain();
   master.gain.value = live.volume;
-  const limiter = ctx.createDynamicsCompressor();
-  limiter.attack.value = 0.002; // catch the first hit of a loud strum or drum
-  master.connect(limiter).connect(ctx.destination);
+  master.connect(makeLimiter(ctx)).connect(ctx.destination);
 
   const beatSeconds = 60 / bpm;
   const barSeconds = beatSeconds * phrase.beats;
@@ -47,7 +47,7 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
   const buffers = new Map<number, AudioBuffer>();
   for (const e of phrase.events) {
     if (buffers.has(e.midi)) continue;
-    const wave = renderPluck(440 * 2 ** ((e.midi - 69) / 12), ctx.sampleRate);
+    const wave = renderNote(instrument, 440 * 2 ** ((e.midi - 69) / 12), ctx.sampleRate, noteSeconds(instrument, bpm, phrase.beats, phrase.stepsPerBar));
     const buffer = ctx.createBuffer(1, wave.length, ctx.sampleRate);
     buffer.copyToChannel(wave, 0);
     buffers.set(e.midi, buffer);
@@ -57,7 +57,7 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
   const hasDrums = (phrase.drums?.length ?? 0) > 0;
   const guitarLevel = hasDrums ? GUITAR_WITH_DRUMS : 1;
   drumMaster.gain.value = live.drums * DRUM_BOOST;
-  drumMaster.connect(master);
+  drumMaster.connect(drumBus(ctx, master)); // through a little room
   const kit = drumBuffers(ctx, phrase.drums ?? []);
   const drumsByBar = new Map<number, DrumEvent[]>();
   for (const d of phrase.drums ?? []) {
@@ -82,7 +82,7 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
     const src = ctx.createBufferSource();
     src.buffer = buffers.get(e.midi)!;
     const gain = ctx.createGain();
-    gain.gain.value = e.gain * guitarLevel;
+    gain.gain.value = e.gain * LEVEL[instrument] * guitarLevel;
     src.connect(gain).connect(master);
     src.start(when);
     track(src);
@@ -90,7 +90,7 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
 
   const drumAt = (d: DrumEvent, when: number) => {
     const src = ctx.createBufferSource();
-    src.buffer = kit.get(d.kind)!;
+    src.buffer = kit.get(drumKey(d))!;
     const gain = ctx.createGain();
     gain.gain.value = d.gain;
     src.connect(gain).connect(drumMaster);

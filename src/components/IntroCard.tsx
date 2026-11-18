@@ -34,7 +34,7 @@ export function IntroCard({ options, current, onPick, capo, keyHint, rhythm }: P
   const [tabOpen, setTabOpen] = useState(loadTabOpen);
   const stopRef = useRef<(() => void) | null>(null);
 
-  const { pattern, bpm, fillStyle, fillWhere, setFillStyle, setFillWhere, drums } = rhythm;
+  const { pattern, bpm, fillStyle, fillWhere, setFillStyle, setFillWhere, drums, instrument } = rhythm;
   const toggleTab = () => {
     setTabOpen((o) => {
       try {
@@ -57,6 +57,7 @@ export function IntroCard({ options, current, onPick, capo, keyHint, rhythm }: P
     setPlayingBar(0);
     stopRef.current = playPhrase(phrase, {
       bpm,
+      instrument,
       onBar: (b) => setPlayingBar(b),
       onEnd: () => {
         stopRef.current = null;
@@ -70,7 +71,7 @@ export function IntroCard({ options, current, onPick, capo, keyHint, rhythm }: P
   useEffect(() => stop, []);
   useEffect(() => {
     stopRef.current?.();
-  }, [open, current?.id, pattern.id, fillStyle, fillWhere, drums]);
+  }, [open, current?.id, pattern.id, fillStyle, fillWhere, drums, instrument]);
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {

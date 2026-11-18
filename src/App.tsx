@@ -12,7 +12,8 @@ import { suggestIntros } from './lib/intro';
 import { ChordProViewer, type LengthEdit } from './components/ChordProViewer';
 import { parseChordPro, transposeParsedSong } from './lib/chordParser';
 import { keyPrefersFlats } from './lib/chordTransposer';
-import { applyThemeToDOM, CHORD_COLORS } from './lib/themeManager';
+import { ThemeToggle } from './components/ThemeToggle';
+import { useTheme } from './lib/useTheme';
 import { db } from './lib/db';
 import { searchApi, songApi, type SearchResult } from './lib/api';
 import { recordPlay, recordSearches } from './lib/libraryStore';
@@ -78,9 +79,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [results]);
 
-  useEffect(() => {
-    applyThemeToDOM('stage-dark', CHORD_COLORS[0].id);
-  }, []);
+  const theme = useTheme();
 
   // Debounced search; a stale response is dropped via the abort signal
   useEffect(() => {
@@ -194,6 +193,7 @@ export default function App() {
             </button>
           </div>
           <div className="flex-1" />
+          <ThemeToggle mode={theme.mode} onNext={theme.next} />
           <a
             href={viewing.sourceUrl}
             target="_blank"
@@ -250,6 +250,7 @@ export default function App() {
         <h1 className="text-2xl font-extrabold tracking-tight">
           G<span className="text-stage-accent">Time</span>
         </h1>
+        <ThemeToggle mode={theme.mode} onNext={theme.next} />
         <button onClick={() => setIsAboutOpen(true)} className="p-2 rounded-lg text-stage-muted hover:text-stage-text hover:bg-stage-cardHover" aria-label="About GTime" title="About">
           <Info className="w-5 h-5" />
         </button>

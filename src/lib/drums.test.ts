@@ -51,7 +51,7 @@ test('the held last bar gets one kick (and a crash when full), nothing else', ()
 });
 
 test('drum sounds are audible, bounded, deterministic and end quietly', () => {
-  for (const kind of ['K', 'S', 'R', 'H', 'T', 'C'] as const) {
+  for (const kind of ['K', 'S', 'R', 'H', 'O', 'T', 'C'] as const) {
     const a = renderDrum(kind, 44100);
     assert.ok(a.length > 500, kind);
     assert.ok(a.every(Number.isFinite), kind);
@@ -59,4 +59,19 @@ test('drum sounds are audible, bounded, deterministic and end quietly', () => {
     assert.ok(a[a.length - 1] === 0, kind); // also true for -0
     assert.deepEqual(renderDrum(kind, 44100), a, `${kind} is the same every time`);
   }
+});
+
+test('each drum has variants that differ, so repeated hits are not identical', () => {
+  for (const kind of ['K', 'S', 'H'] as const) {
+    const [a, b] = [renderDrum(kind, 44100, 0), renderDrum(kind, 44100, 1)];
+    assert.notDeepEqual(a, b, kind);
+    assert.ok(a.every(Number.isFinite) && b.every(Number.isFinite));
+  }
+});
+
+test('a full part uses open hats and more than one variant', () => {
+  const p = pattern('pop-strum');
+  const drums = addDrums(buildPhrase(['C', 'G', 'Am', 'F'], p, 2), p, 'full').drums!;
+  assert.ok(drums.some((d) => d.kind === 'O'));
+  assert.ok(new Set(drums.map((d) => d.variant)).size > 1);
 });

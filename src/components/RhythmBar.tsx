@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CircleHelp, Minus, Plus } from 'lucide-react';
 import { addDrums, DRUM_LEVELS } from '../lib/drums';
+import { INSTRUMENTS, type Instrument } from '../lib/instruments';
 import { buildPhrase, type Pattern } from '../lib/patterns';
 import { playPhrase } from '../lib/synth';
 import { snapTempo, stepTempo, TEMPOS } from '../lib/tempo';
@@ -25,6 +26,7 @@ export function RhythmBar({ rhythm, demoChords, capo, keyHint }: { rhythm: Rhyth
     setListening(key);
     stopRef.current = playPhrase(phrase, {
       bpm: tempo,
+      instrument: rhythm.instrument,
       onEnd: () => {
         stopRef.current = null;
         setListening(null);
@@ -64,6 +66,19 @@ export function RhythmBar({ rhythm, demoChords, capo, keyHint }: { rhythm: Rhyth
       >
         <CircleHelp className="w-4 h-4" />
       </button>
+      <select
+        value={rhythm.instrument}
+        onChange={(e) => rhythm.setInstrument(e.target.value as Instrument)}
+        aria-label="Sound"
+        title="The sound the notes are played with"
+        className="px-2 py-1 rounded-lg bg-stage-bg border border-stage-border text-xs font-semibold focus:outline-none focus:border-stage-accent"
+      >
+        {INSTRUMENTS.map((i) => (
+          <option key={i.id} value={i.id}>
+            {i.name}
+          </option>
+        ))}
+      </select>
       <select
         value={rhythm.drums}
         onChange={(e) => rhythm.setDrums(e.target.value as (typeof DRUM_LEVELS)[number])}

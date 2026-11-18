@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-:root, html, body {
+:root {
   --color-stage-bg: 10 13 20;
   --color-stage-card: 18 24 36;
   --color-stage-cardHover: 26 35 51;
@@ -107,4 +107,17 @@ select option,
 select optgroup {
   background-color: rgb(var(--color-stage-card));
   color: rgb(var(--color-stage-text));
+}
+
+/* The light and dark themes share these utility colours; deepen the pale ones so they read on a light page */
+html.light .text-sky-300,
+html.light .text-sky-400 {
+  color: rgb(3 105 161);
+}
+html.light .border-sky-400 {
+  border-color: rgb(2 132 199);
+}
+html.light .text-amber-300,
+html.light .text-amber-400 {
+  color: rgb(180 83 9);
 }
