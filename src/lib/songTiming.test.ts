@@ -75,3 +75,9 @@ test('a short chord at the very end rings to the bar line', () => {
   const t = songTiming(parseChordPro('{title: x}\n\n[C]a b c d e [G]f\n'), 'auto', 5, new Map([['0-0-1', 1]]));
   assert.deepEqual(t.segments.at(-1), { chord: 'G', bar: 1, from: 0, to: 4, ref: { s: 0, l: 0, t: 1 } });
 });
+
+test('line ends are the last bar before the next line starts', () => {
+  const t = songTiming(parseChordPro('{title: x}\n\n[C]a b c d e [G]f g h i j k l m n o\n[Am]a b c d e\n[F]a b c d e\n'));
+  assert.deepEqual(t.spans.map((s) => s.bars), [1, 2, 1, 1]);
+  assert.deepEqual(t.lineEnds, [2, 3]); // G rings through bar 2; Am is bar 3; F (the last line) has no fill
+});

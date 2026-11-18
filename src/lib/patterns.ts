@@ -134,7 +134,8 @@ export function buildPhrase(chords: string[], pattern: Pattern, repeat = 1, capo
   const shapes = sequence.map((c) => chordShape(c));
   const events: NoteEvent[] = [];
   const key = fill && fill.style !== 'none' ? guessKey(chords, fill.keyHint) : null;
-  const slotsPerBeat = Math.round(pattern.steps.length / pattern.beats); // the last beat is where a fill goes
+  // A fill goes in the last beat; a long (song) fill gets the last half of the bar
+  const slotsPerBeat = fill?.long ? Math.round(pattern.steps.length / 2) : Math.round(pattern.steps.length / pattern.beats);
 
   shapes.forEach((shape, bar) => {
     if (!shape) return; // not a chord: that bar rests
@@ -149,7 +150,7 @@ export function buildPhrase(chords: string[], pattern: Pattern, repeat = 1, capo
     const nextIndex = (bar + 1) % sequence.length;
     const fillRun =
       fill && key && atEnd && !(song && bar + 1 >= sequence.length)
-        ? fillNotes(fill.style, { chord: sequence[bar], next: sequence[nextIndex], shape, nextShape: shapes[nextIndex], key, slots: slotsPerBeat, bar })
+        ? fillNotes(fill.style, { chord: sequence[bar], next: sequence[nextIndex], shape, nextShape: shapes[nextIndex], key, slots: slotsPerBeat, bar, long: fill.long })
         : [];
     const firstFillStep = pattern.steps.length - fillRun.length;
 

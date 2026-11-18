@@ -3,7 +3,7 @@ import { db, type SavedSong } from './db';
 import { tallyPlay, tallySearch, type SongRef } from './stats';
 import type { SearchResult } from './api';
 
-export type SongPayload = Omit<SavedSong, 'id' | 'savedAt'>;
+export type SongPayload = Omit<SavedSong, 'id' | 'savedAt' | 'lengths'>;
 
 const refOf = (s: SongPayload): SongRef => ({ sourceId: s.sourceId, slug: s.slug, title: s.title, artist: s.artist });
 
@@ -30,6 +30,19 @@ export async function recordPlay(song: SongPayload, save: boolean): Promise<void
     if (!save) return;
     const existing = await db.songs.where('sourceId').equals(song.sourceId).first();
     // Keep the original save date and row, so "recent" reflects plays and not re-fetches
-    await db.songs.put({ ...song, id: existing?.id, savedAt: existing?.savedAt ?? now });
+    // ...and the chord lengths set by hand
+    await db.songs.put({ ...song, id: existing?.id, savedAt: existing?.savedAt ?? now, lengths: existing?.lengths });
   });
+}
+
+/** The chord lengths saved with a song (empty if none, or if it is not in the library). */
+export async function loadLengths(sourceId: string): Promise<Map<string, number>> {
+  const song = await db.songs.where('sourceId').equals(sourceId).first();
+  return new Map(Object.entries(song?.lengths ?? {}));
+}
+
+/** Saves the chord lengths with the song in the library. */
+export async function saveLengths(sourceId: string, lengths: Map<string, number>): Promise<void> {
+  const value = lengths.size ? Object.fromEntries(lengths) : undefined;
+  await db.songs.where('sourceId').equals(sourceId).modify({ lengths: value });
 }

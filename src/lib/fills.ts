@@ -9,6 +9,7 @@ export interface FillOptions {
   style: FillStyle;
   where: FillWhere;
   keyHint?: string; // the key written on the sheet, if any
+  long?: boolean; // song fills: more notes, filling half the bar instead of the last beat
   bars?: Set<number>; // for a whole song: exactly which bars get a fill (the song does not loop back to its start)
 }
 
@@ -120,8 +121,9 @@ export interface FillContext {
   shape: Shape;
   nextShape: Shape | null;
   key: KeyInfo;
-  slots: number; // how many slots make up the last beat of the bar
+  slots: number; // how many slots the fill may use (the last beat, or half the bar for a long fill)
   bar: number;
+  long?: boolean; // a song fill: use the room
 }
 
 function bassRun(c: FillContext): FillNote[] {
@@ -133,7 +135,9 @@ function bassRun(c: FillContext): FillNote[] {
   const between: number[] = [];
   for (let p = from + step; p !== to; p += step) if (inScale(c.key, p)) between.push(p);
   if (between.length === 0) return approach(c); // neighbours in the scale: nothing to walk through
-  return keep(between.slice(-c.slots).map(locateBass));
+  // A long run starts on the chord's own bass note, so it climbs or falls the whole way
+  const run = c.long ? [from, ...between] : between;
+  return keep(run.slice(-c.slots).map(locateBass));
 }
 
 function approach(c: FillContext): FillNote[] {
@@ -142,7 +146,9 @@ function approach(c: FillContext): FillNote[] {
   const to = bassMidi(c.nextShape);
   if (from === to) return [];
   const note = to + (to > from ? -1 : 1); // from below when going up, from above when going down
-  return note === from ? [] : keep([locateBass(note)]);
+  if (note === from) return [];
+  // A long fill states the chord's bass note first, then leans into the next one
+  return keep(c.long ? [locateBass(from), locateBass(note)] : [locateBass(note)]);
 }
 
 function hammer(c: FillContext): FillNote[] {
@@ -157,10 +163,11 @@ function hammer(c: FillContext): FillNote[] {
   const fret = c.shape[string];
   // A major third rises to the 4th (sus4); a minor third drops to the 2nd (sus2), or rises if it is an open string
   const moved = fret + (minor ? (fret >= 1 ? -1 : 2) : 1);
-  return [
+  const pair = [
     { string, fret: moved },
     { string, fret },
   ];
+  return c.long && c.slots >= 4 ? [...pair, ...pair] : pair;
 }
 
 function lick(c: FillContext): FillNote[] {
@@ -179,7 +186,7 @@ function lick(c: FillContext): FillNote[] {
   const candidates = chordTones.length ? chordTones : pool;
   const target = candidates.reduce((best, m) => (Math.abs(m - aim) < Math.abs(best - aim) ? m : best), candidates[0]);
   const at = pent.indexOf(target);
-  const count = Math.min(c.slots, 3);
+  const count = Math.min(c.slots, c.long ? 5 : 3);
   const falling = c.bar % 2 === 0; // alternate so repeated fills don't all sound the same
   const midis = falling ? pent.slice(at + 1, at + 1 + count).reverse() : pent.slice(Math.max(0, at - count), at);
   return keep(midis.map(locateTreble));

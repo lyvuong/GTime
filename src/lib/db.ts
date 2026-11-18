@@ -10,6 +10,7 @@ export interface SavedSong {
   chordpro: string;
   sourceUrl: string;
   savedAt: number;
+  lengths?: Record<string, number>; // chord lengths set by hand: "section-line-token" -> quarters of a bar
 }
 
 class GTimeDatabase extends Dexie {

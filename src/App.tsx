@@ -5,6 +5,7 @@ import { AboutModal } from './components/AboutModal';
 import { Tuner } from './components/Tuner';
 import { IntroCard } from './components/IntroCard';
 import { PlayAlongBar } from './components/PlayAlongBar';
+import { RhythmBar } from './components/RhythmBar';
 import { useRhythm } from './lib/useRhythm';
 import type { LineRef, TokenRef } from './lib/songTiming';
 import { suggestIntros } from './lib/intro';
@@ -165,11 +166,14 @@ export default function App() {
   const rhythm = useRhythm(shown?.metadata.time);
   const [active, setActive] = useState<TokenRef | null>(null);
   const [follow, setFollow] = useState(true);
+  const [introId, setIntroId] = useState<string | null>(null);
+  const intro = intros.find((i) => i.id === introId) ?? intros[0];
   const [lengthEdit, setLengthEdit] = useState<LengthEdit | undefined>();
   const [startLine, setStartLine] = useState<LineRef | null>(null);
   useEffect(() => {
     setActive(null);
     setStartLine(null);
+    setIntroId(null);
   }, [viewing?.sourceId]);
 
   if (viewing && shown) {
@@ -204,7 +208,7 @@ export default function App() {
             </span>
           )}
         </div>
-        <IntroCard key={viewing.sourceId} options={intros} capo={shown.metadata.capo} keyHint={shown.metadata.key} rhythm={rhythm} />
+        <RhythmBar rhythm={rhythm} demoChords={intros[0]?.chords ?? []} capo={shown.metadata.capo} keyHint={shown.metadata.key} />
         <div className="flex-1 min-h-0">
           <ChordProViewer
             song={shown}
@@ -217,8 +221,12 @@ export default function App() {
             onLineTap={(s, l) => setStartLine((cur) => (cur && cur.s === s && cur.l === l ? null : { s, l }))}
           />
         </div>
+        {/* The play-along section: the intro, then the song itself */}
+        <div className="border-t-2 border-stage-border bg-stage-card/95">
+        <IntroCard key={viewing.sourceId} options={intros} current={intro} onPick={setIntroId} capo={shown.metadata.capo} keyHint={shown.metadata.key} rhythm={rhythm} />
         <PlayAlongBar
           key={viewing.sourceId}
+          intro={intro}
           songId={String(viewing.sourceId)}
           song={shown}
           rhythm={rhythm}
@@ -231,6 +239,7 @@ export default function App() {
           onActive={setActive}
           onLengthEdit={setLengthEdit}
         />
+        </div>
       </div>
     );
   }

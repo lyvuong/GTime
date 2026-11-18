@@ -64,3 +64,12 @@ test('two chords in one bar each play their half of the pattern', async () => {
   const bar1 = p.events.filter((e) => e.bar === 1);
   assert.ok(bar1.some((e) => e.step < half) && bar1.some((e) => e.step >= half));
 });
+
+test('"line" fills land on the last bar of each sung line and are longer than a beat', () => {
+  const t = songTiming(parseChordPro('{title: x}\n\n[C]a b c d e [G]f g h i j\n[Am]a b c d e [F]a b c d e\n[C]a b c d e\n'));
+  const p = buildSongPhrase(t, PATTERNS.find((x) => x.beats === 4)!, 0, { style: 'lick', where: 'line' });
+  const fillBars = new Set(p.events.filter((e) => e.fill).map((e) => e.bar));
+  assert.deepEqual([...fillBars], [t.lineEnds[0], t.lineEnds[1]]);
+  const notes = p.events.filter((e) => e.fill && e.bar === t.lineEnds[0]);
+  assert.ok(notes.length > 2, 'more than a one-beat fill');
+});

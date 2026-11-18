@@ -38,6 +38,7 @@ export interface SongTiming {
   chords: string[]; // the chord each bar starts with
   barRef: TokenRef[]; // the token each bar belongs to
   lineStartBar: Map<string, number>; // "s-l" -> the bar a line starts on (a line without chords starts on the next chord)
+  lineEnds: number[]; // the last bar of each sung line (where the singer rests); not the final line
   blocks: { start: number; end: number }[]; // paragraphs as bar ranges, end exclusive
   totalBars: number;
 }
@@ -130,7 +131,10 @@ export function songTiming(
   const blockStart = (i: number) => (i < blockStarts.length ? barOf(startQ[blockStarts[i]] ?? q) : totalBars);
   const blocks = blockStarts.map((_, i) => ({ start: blockStart(i), end: blockStart(i + 1) })).filter((b) => b.end > b.start);
 
-  return { spans, chords, barRef, segments, lineStartBar, blocks, totalBars };
+  const firsts = [...new Set(lineFirstSpan.values())].sort((a, b) => a - b);
+  const lineEnds = firsts.slice(1).map((span) => Math.max(0, barOf(startQ[span] - 1)));
+
+  return { spans, chords, barRef, segments, lineStartBar, lineEnds, blocks, totalBars };
 }
 
 /** The paragraph (as a bar range) that a bar falls in. */

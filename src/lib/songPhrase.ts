@@ -5,16 +5,22 @@ import type { FillOptions } from './fills.ts';
 import { buildPhrase, type Pattern, type Phrase } from './patterns.ts';
 import type { SongTiming } from './songTiming.ts';
 
-export function buildSongPhrase(timing: SongTiming, pattern: Pattern, capo = 0, fill?: FillOptions): Phrase {
+// Where song fills go: the end of every sung line (the singer rests there), the end of each paragraph, or every chord change
+export type SongFillWhere = 'line' | 'end' | 'every';
+export interface SongFill extends Omit<FillOptions, 'where' | 'bars'> {
+  where: SongFillWhere;
+}
+
+export function buildSongPhrase(timing: SongTiming, pattern: Pattern, capo = 0, fill?: SongFill): Phrase {
   if (timing.totalBars === 0) return { events: [], stepsPerBar: pattern.steps.length, beats: pattern.beats, bars: 0, shapes: [] };
 
   let options: FillOptions | undefined;
   if (fill && fill.style !== 'none') {
-    // "End only" means the last bar of each paragraph; "every bar" means every chord change
     const bars = new Set<number>();
     if (fill.where === 'every') timing.chords.forEach((_, i) => bars.add(i));
+    else if (fill.where === 'line') timing.lineEnds.forEach((b) => bars.add(b));
     else timing.blocks.forEach((b) => bars.add(b.end - 1));
-    options = { ...fill, bars };
+    options = { ...fill, where: 'end', long: fill.long ?? true, bars };
   }
 
   const phrase = buildPhrase(timing.chords, pattern, 1, capo, options);

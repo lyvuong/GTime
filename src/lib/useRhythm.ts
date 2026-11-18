@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
 import type { FillStyle, FillWhere } from './fills';
+import type { SongFillWhere } from './songPhrase';
 import { patternsFor, type Pattern } from './patterns';
 import { snapTempo } from './tempo';
 
-// The rhythm, fill and tempo you have chosen. The intro and the play-along track share one of these,
-// so "the selected rhythm" means the same thing in both. The rhythm and fill are remembered on this device.
+// The rhythm and tempo you have chosen apply to the whole song, intro included. Fills are chosen separately:
+// the intro's fill is a short flourish, the song's fill is longer and goes where the singer rests.
+// Everything is remembered on this device.
 
-const KEYS = { pattern: 'gtime_rhythm', fill: 'gtime_fill', where: 'gtime_fill_where' };
+const KEYS = { pattern: 'gtime_rhythm', fill: 'gtime_fill', where: 'gtime_fill_where', songFill: 'gtime_song_fill', songWhere: 'gtime_song_fill_where' };
 const FILL_STYLES: FillStyle[] = ['none', 'bass-run', 'approach', 'hammer', 'lick'];
 
 function read(key: string): string | null {
@@ -30,10 +32,14 @@ export interface Rhythm {
   bpm: number;
   setPattern: (id: string) => void; // also returns the tempo to the style's own
   setBpm: (bpm: number) => void;
-  fillStyle: FillStyle;
+  fillStyle: FillStyle; // the intro's fill
   setFillStyle: (style: FillStyle) => void;
   fillWhere: FillWhere;
   setFillWhere: (where: FillWhere) => void;
+  songFill: FillStyle; // the song's fill
+  setSongFill: (style: FillStyle) => void;
+  songFillWhere: SongFillWhere;
+  setSongFillWhere: (where: SongFillWhere) => void;
 }
 
 export function useRhythm(time?: string): Rhythm {
@@ -44,6 +50,15 @@ export function useRhythm(time?: string): Rhythm {
     return saved && FILL_STYLES.includes(saved) ? saved : 'none';
   });
   const [fillWhere, setFillWhereState] = useState<FillWhere>(() => (read(KEYS.where) === 'every' ? 'every' : 'end'));
+
+  const [songFill, setSongFillState] = useState<FillStyle>(() => {
+    const saved = read(KEYS.songFill) as FillStyle | null;
+    return saved && FILL_STYLES.includes(saved) ? saved : 'bass-run';
+  });
+  const [songFillWhere, setSongFillWhereState] = useState<SongFillWhere>(() => {
+    const saved = read(KEYS.songWhere);
+    return saved === 'end' || saved === 'every' ? saved : 'line';
+  });
 
   const patterns = useMemo(() => patternsFor(time), [time]);
   const pattern = patterns.find((p) => p.id === patternId) ?? patterns[0];
@@ -67,6 +82,16 @@ export function useRhythm(time?: string): Rhythm {
     setFillWhere: (where) => {
       setFillWhereState(where);
       write(KEYS.where, where);
+    },
+    songFill,
+    setSongFill: (style) => {
+      setSongFillState(style);
+      write(KEYS.songFill, style);
+    },
+    songFillWhere,
+    setSongFillWhere: (where) => {
+      setSongFillWhereState(where);
+      write(KEYS.songWhere, where);
     },
   };
 }

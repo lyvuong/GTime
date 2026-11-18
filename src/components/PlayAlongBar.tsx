@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronUp, Ruler, Minus, Pause, Play, Plus, Square, X } from 'lucide-react';
+import { ChevronUp, CircleHelp, Ruler, Pause, Play, Square, X } from 'lucide-react';
 import type { ParsedSong } from '../lib/chordParser';
 import { FILLS, type FillStyle } from '../lib/fills';
 import { playAlong, type PlayAlongLive } from '../lib/playAlong';
-import { buildSongPhrase } from '../lib/songPhrase';
+import type { IntroOption } from '../lib/intro';
+import { loadLengths, saveLengths } from '../lib/libraryStore';
+import { buildPhrase, type Phrase } from '../lib/patterns';
+import { buildSongPhrase, type SongFillWhere } from '../lib/songPhrase';
 import { blockOf, lineKey, songTiming, type BarsMode, type LineRef, type TokenRef } from '../lib/songTiming';
-import { stepTempo } from '../lib/tempo';
 import type { LengthEdit } from './ChordProViewer';
 import type { Rhythm } from '../lib/useRhythm';
+import { PlayAlongHelp } from './PlayAlongHelp';
 
 interface Props {
   song: ParsedSong;
-  songId: string; // lengths set by hand are remembered per song
+  songId: string; // chord lengths set by hand are saved with the song in the library
+  intro?: IntroOption; // the intro chosen in Intro ideas, which can be played before the song
   rhythm: Rhythm;
   capo?: number;
   keyHint?: string;
@@ -25,18 +29,9 @@ interface Props {
 
 const CYCLE = [undefined, 1, 2, 4, 8]; // auto, a quarter, a half, one bar, two bars (in quarters of a bar)
 const LABEL: Record<number, string> = { 1: '¼', 2: '½', 4: '1', 8: '2' };
-const storeKey = (id: string) => `gtime_lengths_${id}`;
 
-function loadLengths(id: string): Map<string, number> {
-  try {
-    return new Map(Object.entries(JSON.parse(localStorage.getItem(storeKey(id)) ?? '{}') as Record<string, number>));
-  } catch {
-    return new Map();
-  }
-}
-
-export function PlayAlongBar({ song, songId, rhythm, capo = 0, keyHint, startLine, onClearStart, follow, onFollowChange, onActive, onLengthEdit }: Props) {
-  const { pattern, bpm, fillStyle, fillWhere } = rhythm;
+export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, startLine, onClearStart, follow, onFollowChange, onActive, onLengthEdit }: Props) {
+  const { pattern, bpm, songFill, songFillWhere } = rhythm;
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<BarsMode>('auto');
   const [countIn, setCountIn] = useState(true);
@@ -46,24 +41,29 @@ export function PlayAlongBar({ song, songId, rhythm, capo = 0, keyHint, startLin
   const [state, setState] = useState<'stopped' | 'playing' | 'paused'>('stopped');
   const [bar, setBar] = useState<number | null>(null);
 
-  const [lengths, setLengths] = useState(() => loadLengths(songId));
+  const [withIntro, setWithIntro] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [lengths, setLengths] = useState<Map<string, number>>(new Map());
+  useEffect(() => {
+    let live = true;
+    loadLengths(songId).then((m) => live && setLengths(m)).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [songId]);
   const [editing, setEditing] = useState(false);
   const timing = useMemo(() => songTiming(song, mode, undefined, lengths), [song, mode, lengths]);
 
+  const changeLengths = (next: Map<string, number>) => {
+    setLengths(next);
+    saveLengths(songId, next).catch(() => {});
+  };
   const cycleLength = (id: string) => {
-    setLengths((prev) => {
-      const next = new Map(prev);
-      const i = CYCLE.indexOf(prev.get(id));
-      const to = CYCLE[(i + 1) % CYCLE.length];
-      if (to === undefined) next.delete(id);
-      else next.set(id, to);
-      try {
-        localStorage.setItem(storeKey(songId), JSON.stringify(Object.fromEntries(next)));
-      } catch {
-        /* storage unavailable */
-      }
-      return next;
-    });
+    const next = new Map(lengths);
+    const to = CYCLE[(CYCLE.indexOf(lengths.get(id)) + 1) % CYCLE.length];
+    if (to === undefined) next.delete(id);
+    else next.set(id, to);
+    changeLengths(next);
   };
   useEffect(() => {
     const labels = new Map<string, string>();
@@ -71,9 +71,28 @@ export function PlayAlongBar({ song, songId, rhythm, capo = 0, keyHint, startLin
     onLengthEdit({ labels, onPick: editing ? cycleLength : null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lengths, editing]);
-  const phrase = useMemo(
-    () => buildSongPhrase(timing, pattern, capo, { style: fillStyle, where: fillWhere, keyHint }),
-    [timing, pattern, capo, fillStyle, fillWhere, keyHint],
+  const songPhrase = useMemo(
+    () => buildSongPhrase(timing, pattern, capo, { style: songFill, where: songFillWhere, keyHint }),
+    [timing, pattern, capo, songFill, songFillWhere, keyHint],
+  );
+  // The intro, when switched on, plays first: its bars come before the song's, so every song bar moves along by "offset"
+  const introPhrase = useMemo(
+    () => (withIntro && intro ? buildPhrase(intro.chords, pattern, intro.repeat, capo, { style: rhythm.fillStyle, where: rhythm.fillWhere, keyHint }) : null),
+    [withIntro, intro, pattern, capo, rhythm.fillStyle, rhythm.fillWhere, keyHint],
+  );
+  const offset = introPhrase?.bars ?? 0;
+  const phrase = useMemo<Phrase>(
+    () =>
+      introPhrase
+        ? {
+            events: [...introPhrase.events, ...songPhrase.events.map((e) => ({ ...e, bar: e.bar + offset }))],
+            stepsPerBar: songPhrase.stepsPerBar,
+            beats: songPhrase.beats,
+            bars: offset + songPhrase.bars,
+            shapes: [...introPhrase.shapes, ...songPhrase.shapes],
+          }
+        : songPhrase,
+    [introPhrase, songPhrase, offset],
   );
 
   const live = useRef<PlayAlongLive>({ volume, click });
@@ -85,8 +104,10 @@ export function PlayAlongBar({ song, songId, rhythm, capo = 0, keyHint, startLin
 
   // The chord sounding at a position (a bar, plus quarters/4 when a bar holds several chords)
   const segPos = useMemo(() => timing.segments.map((s) => s.bar + s.from / 4), [timing]);
-  const cues = useMemo(() => timing.segments.filter((s) => s.from > 0).map((s) => ({ bar: s.bar, quarter: s.from })), [timing]);
-  const refFor = (pos: number): TokenRef | null => {
+  const cues = useMemo(() => timing.segments.filter((s) => s.from > 0).map((s) => ({ bar: s.bar + offset, quarter: s.from })), [timing, offset]);
+  const refFor = (absolute: number): TokenRef | null => {
+    const pos = absolute - offset;
+    if (pos < 0) return null; // the intro has no place on the sheet
     let found = -1;
     segPos.forEach((p, i) => {
       if (p <= pos + 1e-9) found = i;
@@ -106,7 +127,8 @@ export function PlayAlongBar({ song, songId, rhythm, capo = 0, keyHint, startLin
   const start = (from: number, withCountIn: boolean) => {
     halt();
     if (phrase.bars === 0) return;
-    const loop = loopBlock ? blockOf(timing, from) : null;
+    const block = loopBlock && from >= offset ? blockOf(timing, from - offset) : null;
+    const loop = block ? { start: block.start + offset, end: block.end + offset } : null;
     setState('playing');
     try {
       navigator.wakeLock?.request('screen').then((w) => (wake.current = w)).catch(() => {});
@@ -140,7 +162,7 @@ export function PlayAlongBar({ song, songId, rhythm, capo = 0, keyHint, startLin
     });
   };
 
-  const startBar = () => (startLine ? timing.lineStartBar.get(lineKey(startLine.s, startLine.l)) ?? 0 : 0);
+  const startBar = () => (startLine ? (timing.lineStartBar.get(lineKey(startLine.s, startLine.l)) ?? 0) + offset : 0);
 
   const toggle = () => {
     if (state === 'playing') {
@@ -189,7 +211,9 @@ export function PlayAlongBar({ song, songId, rhythm, capo = 0, keyHint, startLin
 
   if (timing.totalBars === 0) return null;
 
-  const segIndex = bar === null ? -1 : segPos.reduce((found, p, i) => (p <= bar + 1e-9 ? i : found), 0);
+  const inIntro = bar !== null && bar < offset;
+  const rel = bar === null ? null : bar - offset;
+  const segIndex = rel === null || rel < 0 ? -1 : segPos.reduce((found, p, i) => (p <= rel + 1e-9 ? i : found), 0);
   const now = state === 'playing' && segIndex >= 0 ? timing.segments[segIndex].chord : null;
   const next = segIndex >= 0 ? timing.segments[segIndex + 1]?.chord ?? null : null;
   const playing = state === 'playing';
@@ -199,24 +223,10 @@ export function PlayAlongBar({ song, songId, rhythm, capo = 0, keyHint, startLin
       {open && (
         <div className="px-3 pt-2 pb-1 grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-stage-muted sm:grid-cols-4">
           <label className="flex flex-col gap-0.5">
-            Rhythm
+            Song fill
             <select
-              value={pattern.id}
-              onChange={(e) => rhythm.setPattern(e.target.value)}
-              className="px-2 py-1 rounded-lg bg-stage-bg border border-stage-border text-stage-text font-semibold"
-            >
-              {rhythm.patterns.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-0.5">
-            Fills
-            <select
-              value={fillStyle}
-              onChange={(e) => rhythm.setFillStyle(e.target.value as FillStyle)}
+              value={songFill}
+              onChange={(e) => rhythm.setSongFill(e.target.value as FillStyle)}
               className="px-2 py-1 rounded-lg bg-stage-bg border border-stage-border text-stage-text font-semibold"
             >
               {FILLS.map((f) => (
@@ -227,13 +237,14 @@ export function PlayAlongBar({ song, songId, rhythm, capo = 0, keyHint, startLin
             </select>
           </label>
           <label className="flex flex-col gap-0.5">
-            Fill placement
+            Fill goes
             <select
-              value={fillWhere}
-              onChange={(e) => rhythm.setFillWhere(e.target.value as 'end' | 'every')}
-              disabled={fillStyle === 'none'}
+              value={songFillWhere}
+              onChange={(e) => rhythm.setSongFillWhere(e.target.value as SongFillWhere)}
+              disabled={songFill === 'none'}
               className="px-2 py-1 rounded-lg bg-stage-bg border border-stage-border text-stage-text font-semibold disabled:opacity-50"
             >
+              <option value="line">End of each line</option>
               <option value="end">End of each paragraph</option>
               <option value="every">Every chord change</option>
             </select>
@@ -260,8 +271,13 @@ export function PlayAlongBar({ song, songId, rhythm, capo = 0, keyHint, startLin
             <input type="checkbox" checked={follow} onChange={(e) => onFollowChange(e.target.checked)} /> Follow along
           </label>
           <label className="flex items-center gap-1.5">
-            <input type="checkbox" checked={loopBlock} onChange={(e) => setLoopBlock(e.target.checked)} /> Loop paragraph
+            <input type="checkbox" checked={loopBlock} onChange={(e) => setLoopBlock(e.target.checked)} /> Loop this paragraph
           </label>
+          {intro && (
+            <label className="flex items-center gap-1.5 col-span-2">
+              <input type="checkbox" checked={withIntro} onChange={(e) => setWithIntro(e.target.checked)} /> Play the intro first ({intro.label})
+            </label>
+          )}
           <div className="col-span-2 sm:col-span-4 flex flex-wrap items-center gap-2">
             <button
               onClick={() => setEditing((e) => !e)}
@@ -274,7 +290,7 @@ export function PlayAlongBar({ song, songId, rhythm, capo = 0, keyHint, startLin
               <span>Tap a chord in the song: ¼ → ½ → 1 → 2 bars → auto.</span>
             ) : (
               lengths.size > 0 && (
-                <button onClick={() => { setLengths(new Map()); try { localStorage.removeItem(storeKey(songId)); } catch { /* storage unavailable */ } }} className="underline">
+                <button onClick={() => changeLengths(new Map())} className="underline">
                   Reset {lengths.size} custom {lengths.size === 1 ? 'length' : 'lengths'}
                 </button>
               )
@@ -318,6 +334,8 @@ export function PlayAlongBar({ song, songId, rhythm, capo = 0, keyHint, startLin
         <div className="min-w-0 flex-1 font-mono text-sm font-bold truncate">
           {playing && bar === null ? (
             <span className="text-stage-muted font-semibold">Count-in…</span>
+          ) : playing && inIntro ? (
+            <span className="text-sky-300 font-semibold">Intro</span>
           ) : now ? (
             <>
               <span className="text-stage-accent">{now}</span>
@@ -331,15 +349,9 @@ export function PlayAlongBar({ song, songId, rhythm, capo = 0, keyHint, startLin
             <span className="text-stage-muted font-semibold text-xs">Tap a line to start there</span>
           )}
         </div>
-        <div className="flex items-center gap-0.5 text-xs text-stage-muted">
-          <button onClick={() => rhythm.setBpm(stepTempo(bpm, -1))} className="p-1 rounded-full hover:text-stage-text" aria-label="Slower">
-            <Minus className="w-3.5 h-3.5" />
-          </button>
-          <span className="w-8 text-center font-mono">{bpm}</span>
-          <button onClick={() => rhythm.setBpm(stepTempo(bpm, 1))} className="p-1 rounded-full hover:text-stage-text" aria-label="Faster">
-            <Plus className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        <button onClick={() => setHelpOpen(true)} className="p-1.5 rounded-lg text-stage-muted hover:text-sky-300" aria-label="How Play along works" title="How Play along works">
+          <CircleHelp className="w-4 h-4" />
+        </button>
         <button
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
@@ -349,6 +361,7 @@ export function PlayAlongBar({ song, songId, rhythm, capo = 0, keyHint, startLin
           <ChevronUp className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
       </div>
+      <PlayAlongHelp isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }

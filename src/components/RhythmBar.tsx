@@ -1,0 +1,106 @@
+import { useEffect, useRef, useState } from 'react';
+import { CircleHelp, Minus, Plus } from 'lucide-react';
+import { buildPhrase, type Pattern } from '../lib/patterns';
+import { playPhrase } from '../lib/synth';
+import { snapTempo, stepTempo, TEMPOS } from '../lib/tempo';
+import type { Rhythm } from '../lib/useRhythm';
+import { RhythmGuide } from './RhythmGuide';
+
+// Rhythm and speed belong to the whole song, intro included, so they live in one place above the sheet
+export function RhythmBar({ rhythm, demoChords, capo, keyHint }: { rhythm: Rhythm; demoChords: string[]; capo?: number; keyHint?: string }) {
+  const { patterns, pattern, bpm } = rhythm;
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [listening, setListening] = useState<string | null>(null); // what the guide is playing
+  const stopRef = useRef<(() => void) | null>(null);
+
+  const stop = () => stopRef.current?.();
+  useEffect(() => stop, []);
+
+  // The guide's demos play a few bars on the song's own chords
+  const listen = (key: string, p: Pattern, tempo: number, fill?: { style: Rhythm['songFill'] }) => {
+    stop();
+    const chords = demoChords.length ? demoChords : ['C', 'Am', 'F', 'G'];
+    const phrase = buildPhrase(chords, p, 2, capo ?? 0, fill ? { style: fill.style, where: 'every', long: true, keyHint } : undefined);
+    setListening(key);
+    stopRef.current = playPhrase(phrase, {
+      bpm: tempo,
+      onEnd: () => {
+        stopRef.current = null;
+        setListening(null);
+      },
+    });
+  };
+
+  const groups = [
+    ['Picking', patterns.filter((p) => p.kind === 'pick')],
+    ['Strums and rhythms', patterns.filter((p) => p.kind === 'strum')],
+  ] as const;
+
+  return (
+    <div className="border-b border-stage-border bg-stage-card/60 px-3 py-1.5 flex flex-wrap items-center gap-x-2 gap-y-1" aria-label="Rhythm and speed">
+      <select
+        value={pattern.id}
+        onChange={(e) => rhythm.setPattern(e.target.value)} // each style starts at its own tempo
+        aria-label="Rhythm"
+        className="min-w-0 flex-1 basis-40 max-w-[15rem] px-2 py-1 rounded-lg bg-stage-bg border border-stage-border text-xs font-semibold focus:outline-none focus:border-stage-accent"
+      >
+        {groups.map(([heading, group]) => (
+          <optgroup key={heading} label={heading}>
+            {group.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.meter ? ` (${p.meter})` : ''}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+      <button
+        onClick={() => setGuideOpen(true)}
+        className="p-1 rounded-full text-stage-muted hover:text-sky-300"
+        aria-label="Rhythm guide: how each rhythm sounds"
+        title="Rhythm guide"
+      >
+        <CircleHelp className="w-4 h-4" />
+      </button>
+      <div className="flex-1 basis-40 flex items-center gap-1 text-[11px] text-stage-muted">
+        <button onClick={() => rhythm.setBpm(stepTempo(bpm, -1))} className="p-1 rounded-full hover:text-stage-text" aria-label="Slower">
+          <Minus className="w-3.5 h-3.5" />
+        </button>
+        {/* The slider moves through the metronome settings, not every number */}
+        <input
+          type="range"
+          min={0}
+          max={TEMPOS.length - 1}
+          step={1}
+          value={TEMPOS.indexOf(bpm)}
+          onChange={(e) => rhythm.setBpm(TEMPOS[Number(e.target.value)])}
+          className="flex-1 min-w-0 accent-amber-400"
+          aria-label="Tempo"
+          aria-valuetext={`${bpm} beats per minute`}
+        />
+        <button onClick={() => rhythm.setBpm(stepTempo(bpm, 1))} className="p-1 rounded-full hover:text-stage-text" aria-label="Faster">
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+        <span className="w-12 text-right font-mono">{bpm} bpm</span>
+      </div>
+
+      <RhythmGuide
+        isOpen={guideOpen}
+        onClose={() => {
+          stop();
+          setGuideOpen(false);
+        }}
+        patterns={patterns}
+        selectedId={pattern.id}
+        listeningId={listening}
+        onSelect={rhythm.setPattern}
+        onListen={(p) => listen(p.id, p, snapTempo(p.bpm))}
+        selectedFill={rhythm.songFill}
+        onSelectFill={rhythm.setSongFill}
+        onListenFill={(style) => listen(`fill:${style}`, pattern, bpm, { style })}
+        onStopListening={stop}
+      />
+    </div>
+  );
+}
