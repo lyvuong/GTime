@@ -15,6 +15,7 @@ import {
   Server,
   GitBranch,
   Music,
+  Mic,
   Info,
   Globe,
 } from 'lucide-react';
@@ -49,6 +50,12 @@ const FEATURES = [
     tint: 'bg-emerald-500/10 text-emerald-400',
     title: 'Personal Library',
     body: 'Save songs you like. They live on your device, open instantly, and work without a connection.',
+  },
+  {
+    icon: Mic,
+    tint: 'bg-rose-500/10 text-rose-400',
+    title: 'Guitar Tuner',
+    body: 'Tune by ear or by eye. Pluck a string and the tuner shows the note and how many cents sharp or flat it is. It supports Standard, Drop D, Half step down, Full step down, DADGAD and Open G, and any string can play a reference note.',
   },
 ];
 
@@ -108,7 +115,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
             <p className="leading-relaxed">
               <strong className="text-cyan-600 dark:text-cyan-400">GTime</strong> is a lightweight Progressive Web App for guitarists who
               want chords for a Vietnamese song right now. Search by title or lyrics, tap a result, and read a clean chord sheet you can
-              transpose to your voice. Keep the songs you love in a personal library on your own device.
+              transpose to your voice. Keep the songs you love in a personal library on your own device, and tune up with the built-in guitar tuner.
             </p>
           </div>
 
@@ -142,8 +149,13 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
               <Guitar className="w-3.5 h-3.5 text-amber-400" /> Core Features
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {FEATURES.map(({ icon: Icon, tint, title, body }) => (
-                <div key={title} className="p-3 rounded-xl bg-stage-bg border border-stage-border/70 flex gap-2.5">
+              {FEATURES.map(({ icon: Icon, tint, title, body }, i) => (
+                <div
+                  key={title}
+                  className={`p-3 rounded-xl bg-stage-bg border border-stage-border/70 flex gap-2.5 ${
+                    i === FEATURES.length - 1 && FEATURES.length % 2 === 1 ? 'sm:col-span-2' : ''
+                  }`}
+                >
                   <div className={`p-2 rounded-lg flex-shrink-0 h-fit ${tint}`}>
                     <Icon className="w-4 h-4" />
                   </div>
@@ -182,6 +194,8 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
                 <ShieldCheck className="w-3.5 h-3.5 mt-px flex-shrink-0" />
                 <span>
                   No accounts and no tracking. Your library is stored only in your browser (IndexedDB) and never leaves your device.
+                  The tuner uses your microphone only while it is switched on. Sound is analysed on your device and is never recorded or sent
+                  anywhere.
                 </span>
               </p>
             </div>

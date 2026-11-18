@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeft, BookmarkCheck, BookmarkPlus, ExternalLink, Info, Library, Loader2, Minus, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { ArrowLeft, BookmarkCheck, BookmarkPlus, ExternalLink, Info, Library, Loader2, Mic, Minus, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { AboutModal } from './components/AboutModal';
+import { Tuner } from './components/Tuner';
 import { ChordProViewer } from './components/ChordProViewer';
 import { parseChordPro, transposeParsedSong } from './lib/chordParser';
 import { keyPrefersFlats } from './lib/chordTransposer';
@@ -19,7 +20,7 @@ interface Viewing {
   sourceUrl: string;
 }
 
-type Tab = 'search' | 'library';
+type Tab = 'search' | 'library' | 'tuner';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('search');
@@ -168,20 +169,29 @@ export default function App() {
         <h1 className="text-2xl font-extrabold tracking-tight">
           G<span className="text-stage-accent">Time</span>
         </h1>
-        <div className="flex items-center gap-2">
         <button onClick={() => setIsAboutOpen(true)} className="p-2 rounded-lg text-stage-muted hover:text-stage-text hover:bg-stage-cardHover" aria-label="About GTime" title="About">
           <Info className="w-5 h-5" />
         </button>
-        <div className="flex rounded-xl border border-stage-border overflow-hidden text-sm font-semibold">
-          <button onClick={() => setTab('search')} className={`px-3 py-1.5 flex items-center gap-1.5 ${tab === 'search' ? 'bg-stage-accent/20 text-stage-accent' : 'text-stage-muted'}`}>
-            <Search className="w-4 h-4" /> Search
-          </button>
-          <button onClick={() => setTab('library')} className={`px-3 py-1.5 flex items-center gap-1.5 ${tab === 'library' ? 'bg-stage-accent/20 text-stage-accent' : 'text-stage-muted'}`}>
-            <Library className="w-4 h-4" /> Library{library?.length ? ` (${library.length})` : ''}
-          </button>
-        </div>
-        </div>
       </header>
+
+      <nav className="mx-4 mb-3 grid grid-cols-3 rounded-xl border border-stage-border overflow-hidden text-sm font-semibold" aria-label="Sections">
+        {(
+          [
+            ['search', Search, 'Search'],
+            ['library', Library, `Library${library?.length ? ` (${library.length})` : ''}`],
+            ['tuner', Mic, 'Tuner'],
+          ] as const
+        ).map(([id, Icon, label]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            aria-current={tab === id ? 'page' : undefined}
+            className={`py-2 flex items-center justify-center gap-1.5 ${tab === id ? 'bg-stage-accent/20 text-stage-accent' : 'text-stage-muted'}`}
+          >
+            <Icon className="w-4 h-4" /> {label}
+          </button>
+        ))}
+      </nav>
 
       {tab === 'search' && (
         <div className="px-4 pb-2">
@@ -225,6 +235,8 @@ export default function App() {
             ))}
           </>
         )}
+
+        {tab === 'tuner' && <Tuner />}
 
         {tab === 'library' && (
           <>
