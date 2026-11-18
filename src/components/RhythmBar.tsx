@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CircleHelp, Minus, Plus } from 'lucide-react';
+import { addBass, loopSegments } from '../lib/bass';
+import { BASS_VOICES, type BassVoice } from '../lib/bassKit';
 import { addDrums, DRUM_LEVELS } from '../lib/drums';
 import { INSTRUMENTS, type Instrument } from '../lib/instruments';
 import { buildPhrase, type Pattern } from '../lib/patterns';
@@ -22,11 +24,13 @@ export function RhythmBar({ rhythm, demoChords, capo, keyHint }: { rhythm: Rhyth
   const listen = (key: string, p: Pattern, tempo: number, fill?: { style: Rhythm['songFill'] }) => {
     stop();
     const chords = demoChords.length ? demoChords : ['C', 'Am', 'F', 'G'];
-    const phrase = addDrums(buildPhrase(chords, p, 2, capo ?? 0, fill ? { style: fill.style, where: 'every', long: true, keyHint } : undefined), p, rhythm.drums);
+    const built = addDrums(buildPhrase(chords, p, 2, capo ?? 0, fill ? { style: fill.style, where: 'every', long: true, keyHint } : undefined), p, rhythm.drums);
+    const phrase = addBass(built, p, loopSegments(chords, 2, built.stepsPerBar), rhythm.bass !== 'off');
     setListening(key);
     stopRef.current = playPhrase(phrase, {
       bpm: tempo,
       instrument: rhythm.instrument,
+      bassVoice: rhythm.bass === 'off' ? undefined : rhythm.bass,
       onEnd: () => {
         stopRef.current = null;
         setListening(null);
@@ -76,6 +80,20 @@ export function RhythmBar({ rhythm, demoChords, capo, keyHint }: { rhythm: Rhyth
         {INSTRUMENTS.map((i) => (
           <option key={i.id} value={i.id}>
             {i.name}
+          </option>
+        ))}
+      </select>
+      <select
+        value={rhythm.bass}
+        onChange={(e) => rhythm.setBass(e.target.value as BassVoice | 'off')}
+        aria-label="Bass"
+        title="A bass part under the guitar"
+        className="px-2 py-1 rounded-lg bg-stage-bg border border-stage-border text-xs font-semibold focus:outline-none focus:border-stage-accent"
+      >
+        <option value="off">No bass</option>
+        {BASS_VOICES.map((v) => (
+          <option key={v.id} value={v.id}>
+            Bass: {v.name.replace(' bass', '')}
           </option>
         ))}
       </select>

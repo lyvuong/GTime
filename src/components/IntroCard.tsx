@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Music2, Play, Square } from 'lucide-react';
 import type { IntroOption } from '../lib/intro';
 import { FILLS, type FillOptions, type FillStyle } from '../lib/fills';
+import { addBass, loopSegments } from '../lib/bass';
 import { addDrums } from '../lib/drums';
 import { buildPhrase, tabBars } from '../lib/patterns';
 import type { Rhythm } from '../lib/useRhythm';
@@ -34,7 +35,7 @@ export function IntroCard({ options, current, onPick, capo, keyHint, rhythm }: P
   const [tabOpen, setTabOpen] = useState(loadTabOpen);
   const stopRef = useRef<(() => void) | null>(null);
 
-  const { pattern, bpm, fillStyle, fillWhere, setFillStyle, setFillWhere, drums, instrument } = rhythm;
+  const { pattern, bpm, fillStyle, fillWhere, setFillStyle, setFillWhere, drums, instrument, bass } = rhythm;
   const toggleTab = () => {
     setTabOpen((o) => {
       try {
@@ -52,12 +53,14 @@ export function IntroCard({ options, current, onPick, capo, keyHint, rhythm }: P
   const run = () => {
     if (!current) return;
     stop();
-    const phrase = addDrums(buildPhrase(current.chords, pattern, current.repeat, capo ?? 0, fill), pattern, drums);
+    const built = addDrums(buildPhrase(current.chords, pattern, current.repeat, capo ?? 0, fill), pattern, drums);
+    const phrase = addBass(built, pattern, loopSegments(current.chords, current.repeat, built.stepsPerBar), bass !== 'off');
     setPlaying(true);
     setPlayingBar(0);
     stopRef.current = playPhrase(phrase, {
       bpm,
       instrument,
+      bassVoice: bass === 'off' ? undefined : bass,
       onBar: (b) => setPlayingBar(b),
       onEnd: () => {
         stopRef.current = null;
@@ -71,7 +74,7 @@ export function IntroCard({ options, current, onPick, capo, keyHint, rhythm }: P
   useEffect(() => stop, []);
   useEffect(() => {
     stopRef.current?.();
-  }, [open, current?.id, pattern.id, fillStyle, fillWhere, drums, instrument]);
+  }, [open, current?.id, pattern.id, fillStyle, fillWhere, drums, instrument, bass]);
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {

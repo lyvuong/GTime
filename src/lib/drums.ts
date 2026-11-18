@@ -21,6 +21,7 @@ interface Groove {
   R?: string;
   H?: string;
   O?: string; // an open hat, which replaces the closed hat on its step
+  roll?: number; // a quick snare roll leading into the next bar, starting on this step
 }
 
 const EIGHTHS = { // 8 steps: 1 & 2 & 3 & 4 &
@@ -51,7 +52,8 @@ const GROOVES: Record<string, Groove> = {
   'bossa-nova': { K: 'X..xX..x', R: 'x..x..x.', H: 'xxxxxxxx' },
   rumba: { K: 'X...x...', R: 'x..x..x.', H: 'x.x.x.x.' },
   'cha-cha': { K: 'X...x...', R: 'x.x.x.xx', H: '.x.x.x.x' },
-  tango: { K: 'X...x...', S: '..x..xx.' },
+  tango: { K: 'X...x...', S: 'x.x.x.x.', roll: 7 }, // a light snare on every beat, and the ballroom roll on the "and" of 4
+  'tango-sync': { K: 'X..x..x.', R: '..x...x.' },
   blues: TRIPLETS.swing,
   valse: WALTZ.plain,
   boston: WALTZ.soft,
@@ -102,6 +104,16 @@ export function addDrums(phrase: Phrase, pattern: Pattern, level: DrumLevel, opt
     row(open, 'O');
     row(groove.H?.split('').map((c, i) => (open?.[i] && open[i] !== '.' ? '.' : c)).join(''), 'H', full ? 1 : 0.6);
 
+    if (groove.roll !== undefined && until > groove.roll) {
+      // The ballroom flourish: a rapid roll on the "and" of the last beat, swelling into the next bar's downbeat
+      if (full) {
+        const parts = 4;
+        for (let i = 0; i < parts; i++) {
+          const n = (bar * 31 + i * 7) % 9;
+          drums.push({ bar, step: groove.roll + i / parts, kind: 'S', gain: BASE.S * (0.55 + 0.2 * i), variant: n % 3 });
+        }
+      } else hit(bar, groove.roll, 'R', false, 0.8);
+    }
     if (full && until < steps) {
       // A roll across the fill, rising in volume, with a crash on the next bar's first beat
       const n = steps - until;

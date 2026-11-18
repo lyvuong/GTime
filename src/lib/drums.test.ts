@@ -75,3 +75,14 @@ test('a full part uses open hats and more than one variant', () => {
   assert.ok(drums.some((d) => d.kind === 'O'));
   assert.ok(new Set(drums.map((d) => d.variant)).size > 1);
 });
+
+test('the ballroom tango rolls the snare on the "and" of 4, swelling into the next bar', () => {
+  const p = PATTERNS.find((x) => x.id === 'tango')!;
+  const built = buildPhrase(['Am', 'E'], p);
+  const full = addDrums(built, p, 'full').drums!.filter((d) => d.bar === 0 && d.step >= 7);
+  assert.equal(full.length, 4);
+  assert.ok(full.every((d) => d.kind === 'S' && d.step < 8));
+  assert.ok(full[3].gain > full[0].gain);
+  const light = addDrums(built, p, 'light').drums!.filter((d) => d.bar === 0 && d.step >= 7);
+  assert.deepEqual(light.map((d) => d.kind), ['R']);
+});

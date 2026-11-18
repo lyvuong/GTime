@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { BASS_VOICES, type BassVoice } from './bassKit';
 import { DRUM_LEVELS, type DrumLevel } from './drums';
 import { INSTRUMENTS, type Instrument } from './instruments';
 import type { FillStyle, FillWhere } from './fills';
@@ -10,7 +11,7 @@ import { snapTempo } from './tempo';
 // the intro's fill is a short flourish, the song's fill is longer and goes where the singer rests.
 // Everything is remembered on this device.
 
-const KEYS = { pattern: 'gtime_rhythm', fill: 'gtime_fill', where: 'gtime_fill_where', songFill: 'gtime_song_fill', songWhere: 'gtime_song_fill_where', drums: 'gtime_drums', instrument: 'gtime_instrument', drumsBack: 'gtime_drums_last' };
+const KEYS = { pattern: 'gtime_rhythm', fill: 'gtime_fill', where: 'gtime_fill_where', songFill: 'gtime_song_fill', songWhere: 'gtime_song_fill_where', drums: 'gtime_drums', instrument: 'gtime_instrument', drumsBack: 'gtime_drums_last', bass: 'gtime_bass', bassBack: 'gtime_bass_last' };
 const FILL_STYLES: FillStyle[] = ['none', 'bass-run', 'approach', 'hammer', 'lick'];
 
 function read(key: string): string | null {
@@ -43,6 +44,9 @@ export interface Rhythm {
   drums: DrumLevel; // a drum part under the intro and the song
   setDrums: (level: DrumLevel) => void;
   toggleDrums: () => void; // off, or back to the level used last
+  bass: BassVoice | 'off'; // a bass part, and which voice plays it
+  setBass: (bass: BassVoice | 'off') => void;
+  toggleBass: () => void; // off, or back to the voice used last
   songFill: FillStyle; // the song's fill
   setSongFill: (style: FillStyle) => void;
   songFillWhere: SongFillWhere;
@@ -70,6 +74,10 @@ export function useRhythm(time?: string): Rhythm {
   const [instrument, setInstrumentState] = useState<Instrument>(() => {
     const saved = read(KEYS.instrument);
     return INSTRUMENTS.some((i) => i.id === saved) ? (saved as Instrument) : 'guitar';
+  });
+  const [bass, setBassState] = useState<BassVoice | 'off'>(() => {
+    const saved = read(KEYS.bass);
+    return BASS_VOICES.some((v) => v.id === saved) ? (saved as BassVoice) : 'off';
   });
   const [drums, setDrumsState] = useState<DrumLevel>(() => {
     const saved = read(KEYS.drums) as DrumLevel | null;
@@ -115,6 +123,19 @@ export function useRhythm(time?: string): Rhythm {
       const next: DrumLevel = drums === 'off' ? back : 'off';
       setDrumsState(next);
       write(KEYS.drums, next);
+    },
+    bass,
+    setBass: (value) => {
+      setBassState(value);
+      write(KEYS.bass, value);
+      if (value !== 'off') write(KEYS.bassBack, value);
+    },
+    toggleBass: () => {
+      const saved = read(KEYS.bassBack);
+      const back = BASS_VOICES.some((v) => v.id === saved) ? (saved as BassVoice) : 'electric';
+      const next = bass === 'off' ? back : 'off';
+      setBassState(next);
+      write(KEYS.bass, next);
     },
     songFill,
     setSongFill: (style) => {

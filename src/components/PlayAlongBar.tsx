@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronUp, CircleHelp, Drum, Music2, Ruler, Pause, Play, Square, X } from 'lucide-react';
+import { ChevronUp, CircleHelp, Drum, Guitar, Music2, Ruler, Pause, Play, Square, X } from 'lucide-react';
 import type { ParsedSong } from '../lib/chordParser';
 import { FILLS, type FillStyle } from '../lib/fills';
 import { playAlong, type PlayAlongLive } from '../lib/playAlong';
 import type { IntroOption } from '../lib/intro';
+import { addBass, loopSegments, shiftBass, songSegments } from '../lib/bass';
 import { addDrums, shiftDrums } from '../lib/drums';
 import { loadLengths, saveLengths } from '../lib/libraryStore';
 import { buildPhrase, type Phrase } from '../lib/patterns';
@@ -32,7 +33,8 @@ const CYCLE = [undefined, 1, 2, 3, 4, 6, 8]; // auto, then ¼ ½ ¾ 1 1½ 2 bars
 const LABEL: Record<number, string> = { 1: '¼', 2: '½', 3: '¾', 4: '1', 6: '1½', 8: '2' };
 
 export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, startLine, onClearStart, follow, onFollowChange, onActive, onLengthEdit }: Props) {
-  const { pattern, bpm, songFill, songFillWhere, drums } = rhythm;
+  const { pattern, bpm, songFill, songFillWhere, drums, bass } = rhythm;
+  const bassOn = bass !== 'off';
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<BarsMode>('auto');
   const [countIn, setCountIn] = useState(true);
@@ -40,6 +42,7 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
   const [loopBlock, setLoopBlock] = useState(false);
   const [volume, setVolume] = useState(0.7);
   const [drumVolume, setDrumVolume] = useState(0.8);
+  const [bassVolume, setBassVolume] = useState(0.8);
   const [state, setState] = useState<'stopped' | 'playing' | 'paused'>('stopped');
   const [bar, setBar] = useState<number | null>(null);
 
@@ -76,17 +79,22 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
   const songPhrase = useMemo(
     () => {
       const phrase = buildSongPhrase(timing, pattern, capo, { style: songFill, where: songFillWhere, keyHint });
-      return addDrums(phrase, pattern, drums, { holdBar: phrase.bars - 1 }); // the last bar is the held chord
+      const hold = phrase.bars - 1; // the last bar is the held chord
+      const withDrums = addDrums(phrase, pattern, drums, { holdBar: hold });
+      return addBass(withDrums, pattern, songSegments(timing, phrase.stepsPerBar), bassOn, { holdBar: hold });
     },
-    [timing, pattern, capo, songFill, songFillWhere, keyHint, drums],
+    [timing, pattern, capo, songFill, songFillWhere, keyHint, drums, bassOn],
   );
   // The intro, when switched on, plays first: its bars come before the song's, so every song bar moves along by "offset"
   const introPhrase = useMemo(
     () =>
       withIntro && intro
-        ? addDrums(buildPhrase(intro.chords, pattern, intro.repeat, capo, { style: rhythm.fillStyle, where: rhythm.fillWhere, keyHint }), pattern, drums)
+        ? (() => {
+            const built = addDrums(buildPhrase(intro.chords, pattern, intro.repeat, capo, { style: rhythm.fillStyle, where: rhythm.fillWhere, keyHint }), pattern, drums);
+            return addBass(built, pattern, loopSegments(intro.chords, intro.repeat, built.stepsPerBar), bassOn);
+          })()
         : null,
-    [withIntro, intro, pattern, capo, rhythm.fillStyle, rhythm.fillWhere, keyHint, drums],
+    [withIntro, intro, pattern, capo, rhythm.fillStyle, rhythm.fillWhere, keyHint, drums, bassOn],
   );
   const offset = introPhrase?.bars ?? 0;
   const phrase = useMemo<Phrase>(
@@ -99,14 +107,16 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
             bars: offset + songPhrase.bars,
             shapes: [...introPhrase.shapes, ...songPhrase.shapes],
             drums: [...(introPhrase.drums ?? []), ...shiftDrums(songPhrase.drums, offset)],
+            bass: [...(introPhrase.bass ?? []), ...shiftBass(songPhrase.bass, offset)],
           }
         : songPhrase,
     [introPhrase, songPhrase, offset],
   );
 
-  const live = useRef<PlayAlongLive>({ volume, click, drums: drumVolume });
+  const live = useRef<PlayAlongLive>({ volume, click, drums: drumVolume, bass: bassVolume });
   live.current.volume = volume;
   live.current.drums = drumVolume;
+  live.current.bass = bassVolume;
   live.current.click = click;
   const stopRef = useRef<(() => void) | null>(null);
   const barRef = useRef(0); // the bar that is sounding, for resuming and restarting
@@ -155,6 +165,7 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
     stopRef.current = playAlong(phrase, {
       bpm,
       instrument: rhythm.instrument,
+      bassVoice: bass === 'off' ? undefined : bass,
       startBar: from,
       loop,
       countIn: withCountIn,
@@ -209,7 +220,7 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
     }
     if (state === 'playing') start(Math.min(barRef.current, Math.max(0, phrase.bars - 1)), false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phrase, bpm, loopBlock, rhythm.instrument]);
+  }, [phrase, bpm, loopBlock, rhythm.instrument, bass]);
 
   // Silence when leaving the song
   useEffect(
@@ -308,6 +319,20 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
             )}
           </div>
           <label className="flex items-center gap-1.5 col-span-2">
+            Bass volume
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={bassVolume}
+              onChange={(e) => setBassVolume(Number(e.target.value))}
+              disabled={!bassOn}
+              className="flex-1 accent-amber-400 disabled:opacity-40"
+              aria-label="Bass volume"
+            />
+          </label>
+          <label className="flex items-center gap-1.5 col-span-2">
             Drum volume
             <input
               type="range"
@@ -381,6 +406,14 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
           className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 ${drums !== 'off' ? 'bg-sky-400/20 border-sky-400 text-sky-300' : 'border-stage-border text-stage-muted'}`}
         >
           <Drum className="w-3.5 h-3.5" /> Drums {drums === 'off' ? 'off' : 'on'}
+        </button>
+        <button
+          onClick={rhythm.toggleBass}
+          aria-pressed={bassOn}
+          title={bassOn ? `Bass: ${bass}. Tap to turn off.` : 'Tap to add a bass line (choose the voice in the rhythm bar).'}
+          className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 ${bassOn ? 'bg-sky-400/20 border-sky-400 text-sky-300' : 'border-stage-border text-stage-muted'}`}
+        >
+          <Guitar className="w-3.5 h-3.5" /> Bass {bassOn ? 'on' : 'off'}
         </button>
         {intro && (
           <button

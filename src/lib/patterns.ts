@@ -1,6 +1,7 @@
 // Picking patterns and rhythm styles that turn a chord into notes, plus a plain-text tab of the result.
 // The rhythms are simplified guitar versions of the usual accompaniment for each style.
 import { chordShape, OPEN_STRINGS, type Shape } from './chordShapes.ts';
+import type { BassEvent } from './bass.ts';
 import type { DrumEvent } from './drums.ts';
 import { fillNotes, guessKey, type FillOptions } from './fills.ts';
 
@@ -55,8 +56,10 @@ export const PATTERNS: Pattern[] = [
     'Bass on 1 and 3, each followed by a chord hit and a small up stroke. Smooth and flowing, a relaxed Latin ballad groove.'),
   p('cha-cha', 'Cha Cha', 'strum', 4, 112, ['B', null, 'C', null, 'C', null, 'C', 'C'],
     'A steady beat that finishes the bar with the quick "cha-cha-cha" on beat 4 and its "and". Bright and danceable.'),
-  p('tango', 'Tango', 'strum', 4, 100, ['B', null, 'C', null, 'A', 'C', 'C', null],
-    'Crisp, sharp and dramatic: "slow, slow, quick-quick, slow". Firm accented hits on the beats with a quick pair in the middle of the bar. Play it staccato, stopping each hit short.'),
+  p('tango', 'Tango (ballroom)', 'strum', 4, 120, ['B', null, 'C', null, 'A', null, 'C', null],
+    'The marcato of a ballroom tango: a firm, detached hit on every beat, with the low bass note on the strong beats 1 and 3 and a sharp chord on 2 and 4. Play each hit staccato, stopping it short, and keep it strict and driving. With drums on, a rapid snare roll on the "and" of 4 leads into the next bar, as in International-style ballroom tango.'),
+  p('tango-sync', 'Tango (syncopated)', 'strum', 4, 116, ['B', null, null, 'C', null, null, 'C', null],
+    'The syncopated Argentine tango: the hits fall in a long-long-short grouping of eighth notes (three, three, two) instead of on the beats, so the rhythm leans forward and pulls against the pulse. Bass on 1, then two sharp chord hits. Short and crisp.'),
   p('blues', 'Blues shuffle', 'strum', 4, 72, ['B', null, 'C', 'A', null, 'C', 'B', null, 'C', 'A', null, 'C'],
     'A swung triplet shuffle: bass notes alternate with chord hits and the long-short rhythm gives a lazy, rolling swing.', '12/8'),
   p('valse', 'Valse', 'strum', 3, 100, ['B', null, 'C', null, 'C', null],
@@ -116,6 +119,7 @@ export interface Phrase {
   bars: number;
   shapes: (Shape | null)[]; // the fingering used for each bar
   drums?: DrumEvent[]; // the drum part, when there is one (see drums.ts)
+  bass?: BassEvent[]; // the bass part, when there is one (see bass.ts)
 }
 
 function stringFor(token: Token, played: number[]): number {

@@ -1,11 +1,13 @@
 // Plays a phrase through Web Audio using plucked-string notes. Browser only.
 import type { Phrase } from './patterns';
 import { DRUM_BOOST, drumBuffers, drumBus, drumKey, GUITAR_WITH_DRUMS } from './drumKit';
+import { bassBuffers, playBassNote, type BassVoice } from './bassKit';
 import { LEVEL, noteSeconds, renderNote, type Instrument } from './instruments';
 
 export interface PlayOptions {
   bpm: number;
   instrument?: Instrument;
+  bassVoice?: BassVoice;
   onBar?: (bar: number) => void;
   onEnd?: () => void;
 }
@@ -28,7 +30,7 @@ export function makeLimiter(ctx: BaseAudioContext): DynamicsCompressorNode {
 const STRUM_SPREAD = 0.014; // seconds between strings in a strum
 
 /** Starts playing and returns a function that stops it. */
-export function playPhrase(phrase: Phrase, { bpm, instrument = 'guitar', onBar, onEnd }: PlayOptions): () => void {
+export function playPhrase(phrase: Phrase, { bpm, instrument = 'guitar', bassVoice = 'electric', onBar, onEnd }: PlayOptions): () => void {
   const ctx = new AudioContext();
   const master = ctx.createGain();
   master.gain.value = 0.7;
@@ -74,6 +76,13 @@ export function playPhrase(phrase: Phrase, { bpm, instrument = 'guitar', onBar, 
     src.connect(gain).connect(kitIn);
     src.start(t0 + d.bar * barSeconds + d.step * stepSeconds);
     sources.push(src);
+  }
+
+  // The bass part, when there is one
+  const bass = phrase.bass ?? [];
+  if (bass.length) {
+    const buffers = bassBuffers(ctx, bassVoice, bass);
+    for (const e of bass) sources.push(playBassNote(ctx, master, buffers, e, t0 + e.bar * barSeconds + e.step * stepSeconds, stepSeconds));
   }
 
   const timers: number[] = [];

@@ -4,6 +4,8 @@
 import type { NoteEvent, Phrase } from './patterns';
 import { DRUM_BOOST, drumBuffers, drumBus, drumKey, GUITAR_WITH_DRUMS } from './drumKit';
 import type { DrumEvent } from './drums';
+import { bassBuffers, playBassNote, type BassVoice } from './bassKit';
+import type { BassEvent } from './bass';
 import { LEVEL, noteSeconds, renderNote, type Instrument } from './instruments';
 import { claimAudio, makeLimiter, releaseAudio } from './synth';
 
@@ -11,11 +13,13 @@ export interface PlayAlongLive {
   volume: number; // 0 to 1, read as the track plays
   click: boolean; // a click on every beat
   drums: number; // 0 to 1, how loud the drum part is
+  bass: number; // 0 to 1, how loud the bass is
 }
 
 export interface PlayAlongOptions {
   bpm: number;
   instrument?: Instrument;
+  bassVoice?: BassVoice;
   startBar: number;
   loop: { start: number; end: number } | null; // repeat these bars (end exclusive)
   countIn: boolean;
@@ -64,6 +68,17 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
     const list = drumsByBar.get(d.bar);
     if (list) list.push(d);
     else drumsByBar.set(d.bar, [d]);
+  }
+  // The bass part, with its own level too
+  const bassMaster = ctx.createGain();
+  bassMaster.gain.value = live.bass;
+  bassMaster.connect(master);
+  const bassKit = bassBuffers(ctx, opts.bassVoice ?? 'electric', phrase.bass ?? []);
+  const bassByBar = new Map<number, BassEvent[]>();
+  for (const b of phrase.bass ?? []) {
+    const list = bassByBar.get(b.bar);
+    if (list) list.push(b);
+    else bassByBar.set(b.bar, [b]);
   }
   const byBar = new Map<number, NoteEvent[]>();
   for (const e of phrase.events) {
@@ -126,6 +141,7 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
     log.push({ bar, time: t });
     for (const q of cuesByBar.get(bar) ?? []) log.push({ bar: bar + q / 4, time: t + (q / 4) * barSeconds });
     for (const d of drumsByBar.get(bar) ?? []) drumAt(d, t + d.step * stepSeconds);
+    for (const b of bassByBar.get(bar) ?? []) track(playBassNote(ctx, bassMaster, bassKit, b, t + b.step * stepSeconds, stepSeconds));
     for (const e of byBar.get(bar) ?? []) noteAt(e, t + e.step * stepSeconds + e.order * STRUM_SPREAD);
     if (live.click) for (let b = 0; b < phrase.beats; b++) clickAt(t + b * beatSeconds, b === 0);
     t += barSeconds;
@@ -157,6 +173,7 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
     if (stopped) return;
     master.gain.value = live.volume;
     drumMaster.gain.value = live.drums * DRUM_BOOST;
+    bassMaster.gain.value = live.bass;
     while (!done && t < ctx.currentTime + LOOKAHEAD) scheduleBar();
     const now = ctx.currentTime;
     while (log.length > 1 && log[1].time <= now) log.shift();
