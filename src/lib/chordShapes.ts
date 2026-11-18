@@ -9,7 +9,7 @@ export const OPEN_STRINGS = [40, 45, 50, 55, 59, 64]; // MIDI notes of E2 A2 D3 
 const SEMI: Record<string, number> = { C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11 };
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
-type Quality = '' | 'm' | '7' | 'm7' | 'maj7' | 'sus4' | 'sus2' | 'dim' | '6' | 'add9';
+export type Quality ='' | 'm' | '7' | 'm7' | 'maj7' | 'sus4' | 'sus2' | 'dim' | '6' | 'add9';
 
 // Hand-picked open shapes, keyed by root (sharp spelling) + quality
 const OPEN: Record<string, Shape> = {
@@ -69,13 +69,20 @@ export function normalizeQuality(q: string): Quality {
   return ''; // plain, power chords, augmented and anything unfamiliar
 }
 
-/** The fingering for a chord such as "F#m7" or "G/B" (the bass note is ignored), or null for something that isn't a chord. */
-export function chordShape(chord: string): Shape | null {
+/** The root (0 = C ... 11 = B) and normalised quality of a chord name, or null for something that isn't a chord. */
+export function parseChord(chord: string): { root: number; quality: Quality } | null {
   const m = chord.trim().match(/^([A-G][#b]?)([^/]*)(?:\/.*)?$/);
   if (!m) return null;
   const root = SEMI[m[1]];
   if (root === undefined) return null;
-  const quality = normalizeQuality(m[2]);
+  return { root, quality: normalizeQuality(m[2]) };
+}
+
+/** The fingering for a chord such as "F#m7" or "G/B" (the bass note is ignored), or null for something that isn't a chord. */
+export function chordShape(chord: string): Shape | null {
+  const parsed = parseChord(chord);
+  if (!parsed) return null;
+  const { root, quality } = parsed;
 
   const open = OPEN[`${NAMES[root]}${quality}`];
   if (open) return open;

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, CircleHelp, Minus, Music2, Play, Plus, Square } from 'lucide-react';
 import type { IntroOption } from '../lib/intro';
+import { FILLS, type FillOptions, type FillStyle, type FillWhere } from '../lib/fills';
 import { buildPhrase, patternsFor, tabBars, type Pattern } from '../lib/patterns';
 import { playPhrase } from '../lib/synth';
 import { snapTempo, stepTempo, TEMPOS } from '../lib/tempo';
@@ -17,7 +18,7 @@ function loadTabOpen(): boolean {
 }
 
 // A compact strip under the song toolbar: ways to start the song, a rhythm to play them with, the tab, and playback
-export function IntroCard({ options, time, capo }: { options: IntroOption[]; time?: string; capo?: number }) {
+export function IntroCard({ options, time, capo, keyHint }: { options: IntroOption[]; time?: string; capo?: number; keyHint?: string }) {
   const [open, setOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [picked, setPicked] = useState<IntroOption['id'] | null>(null);
@@ -26,6 +27,8 @@ export function IntroCard({ options, time, capo }: { options: IntroOption[]; tim
   const [playingId, setPlayingId] = useState<string | null>(null); // the pattern that is sounding
   const [playingBar, setPlayingBar] = useState<number | null>(null);
   const [tabOpen, setTabOpen] = useState(loadTabOpen);
+  const [fillStyle, setFillStyle] = useState<FillStyle>('none');
+  const [fillWhere, setFillWhere] = useState<FillWhere>('end');
   const stopRef = useRef<(() => void) | null>(null);
 
   const patterns = useMemo(() => patternsFor(time), [time]);
@@ -44,24 +47,26 @@ export function IntroCard({ options, time, capo }: { options: IntroOption[]; tim
   // A tempo change while playing restarts at the new speed
   const setTempo = (next: number) => {
     setBpmOverride(next);
-    if (playing) run(pattern, next);
+    if (playing) run(pattern.id, pattern, next);
   };
   const current = options.find((o) => o.id === picked) ?? options[0];
-  const tab = useMemo(() => (current ? tabBars(current.chords, pattern) : []), [current, pattern]);
+  const fill = useMemo<FillOptions>(() => ({ style: fillStyle, where: fillWhere, keyHint }), [fillStyle, fillWhere, keyHint]);
+  const tab = useMemo(() => (current ? tabBars(current.chords, pattern, fill) : []), [current, pattern, fill]);
 
   const stop = () => stopRef.current?.();
   // Silence the intro when anything it depends on changes, when the card closes, and when leaving the song
   useEffect(() => stop, []);
   useEffect(() => {
     stopRef.current?.();
-  }, [open, current?.id, pattern.id]);
+  }, [open, current?.id, pattern.id, fillStyle, fillWhere]);
 
   if (options.length === 0 || !current) return null;
 
-  const run = (p: Pattern, tempo: number) => {
+  // `key` says what is sounding (a pattern's id, or "fill:<id>" for a fill demo from the guide)
+  const run = (key: string, p: Pattern, tempo: number, fillOverride?: FillOptions) => {
     stop();
-    const phrase = buildPhrase(current.chords, p, current.repeat, capo ?? 0);
-    setPlayingId(p.id);
+    const phrase = buildPhrase(current.chords, p, current.repeat, capo ?? 0, fillOverride ?? fill);
+    setPlayingId(key);
     setPlayingBar(0);
     const end = () => {
       stopRef.current = null;
@@ -140,6 +145,28 @@ export function IntroCard({ options, time, capo }: { options: IntroOption[]; tim
                 </optgroup>
               ))}
             </select>
+            <select
+              value={fillStyle}
+              onChange={(e) => setFillStyle(e.target.value as FillStyle)}
+              aria-label="Fill"
+              className="min-w-0 basis-32 max-w-[11rem] px-2 py-1 rounded-lg bg-stage-bg border border-stage-border text-xs font-semibold focus:outline-none focus:border-stage-accent"
+            >
+              {FILLS.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.id === 'none' ? 'No fill' : `Fill: ${f.name}`}
+                </option>
+              ))}
+            </select>
+            {fillStyle !== 'none' && (
+              <button
+                onClick={() => setFillWhere((w) => (w === 'end' ? 'every' : 'end'))}
+                className="px-2 py-1 rounded-lg border border-stage-border text-[11px] font-semibold text-stage-muted hover:text-stage-text"
+                title={fillWhere === 'end' ? 'Fill only at the end of the loop. Tap for every chord change.' : 'Fill at every chord change. Tap for the end of the loop only.'}
+                aria-label={`Fill placement: ${fillWhere === 'end' ? 'end of the loop' : 'every chord change'}`}
+              >
+                {fillWhere === 'end' ? 'End only' : 'Every bar'}
+              </button>
+            )}
             <button
               onClick={() => setGuideOpen(true)}
               className="p-1 rounded-full text-stage-muted hover:text-sky-300"
@@ -149,7 +176,7 @@ export function IntroCard({ options, time, capo }: { options: IntroOption[]; tim
               <CircleHelp className="w-4 h-4" />
             </button>
             <button
-              onClick={playing ? stop : () => run(pattern, bpm)}
+              onClick={playing ? stop : () => run(pattern.id, pattern, bpm)}
               className="px-2.5 py-1 rounded-lg bg-stage-accent text-slate-950 text-xs font-bold flex items-center gap-1"
             >
               {playing ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -167,7 +194,7 @@ export function IntroCard({ options, time, capo }: { options: IntroOption[]; tim
                 step={1}
                 value={TEMPOS.indexOf(bpm)}
                 onChange={(e) => setBpmOverride(TEMPOS[Number(e.target.value)])}
-                onPointerUp={() => playing && run(pattern, bpm)}
+                onPointerUp={() => playing && run(pattern.id, pattern, bpm)}
                 className="flex-1 min-w-0 accent-amber-400"
                 aria-label="Tempo"
                 aria-valuetext={`${bpm} beats per minute`}
@@ -198,7 +225,7 @@ export function IntroCard({ options, time, capo }: { options: IntroOption[]; tim
               >
                 <div className="text-[11px] leading-none font-bold text-stage-accent pb-0.5">{bar.chord}</div>
                 <pre className="font-mono text-[10px] leading-[1.15] text-stage-text">
-                  {pattern.kind === 'strum' && <span className="block text-stage-muted">{`  ${bar.marks}`}</span>}
+                  {bar.marks.trim() !== '' && <span className="block text-stage-muted">{`  ${bar.marks}`}</span>}
                   {bar.rows.map((row, s) => (
                     <span key={s} className="block">{`${STRING_LABELS[s]}|${row}|`}</span>
                   ))}
@@ -219,7 +246,10 @@ export function IntroCard({ options, time, capo }: { options: IntroOption[]; tim
           setPatternId(id);
           setBpmOverride(null);
         }}
-        onListen={(p) => run(p, snapTempo(p.bpm))}
+        onListen={(p) => run(p.id, p, snapTempo(p.bpm))}
+        selectedFill={fillStyle}
+        onSelectFill={setFillStyle}
+        onListenFill={(style) => run(`fill:${style}`, pattern, bpm, { style, where: 'every', keyHint })}
         onStopListening={stop}
       />
     </div>

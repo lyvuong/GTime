@@ -107,6 +107,54 @@ test('something that is not a chord rests for the bar', () => {
   assert.equal(p.events.filter((e) => e.bar === 1).length, 0);
 });
 
+test('a fill takes over the last slots of a bar and leaves the rest of the pattern alone', () => {
+  const plain = buildPhrase(['G', 'C'], arp).events;
+  const filled = buildPhrase(['G', 'C'], arp, 1, 0, { style: 'bass-run', where: 'every' }).events;
+  const fills = filled.filter((e) => e.fill);
+  assert.ok(fills.length > 0);
+  // bar 0 is G going up to C: A and B in the last two slots (steps 6 and 7), as open A and fret 2 on the A string
+  const bar0 = fills.filter((e) => e.bar === 0);
+  assert.deepEqual(bar0.map((e) => [e.step, e.midi]), [[6, 45], [7, 47]]);
+  // everything before the fill is exactly what the pattern played
+  assert.deepEqual(filled.filter((e) => !e.fill && e.step < 6), plain.filter((e) => e.step < 6));
+  assert.equal(filled.filter((e) => !e.fill && e.step >= 6 && e.bar === 0).length, 0, 'the replaced slots are silent apart from the fill');
+});
+
+test('"end only" puts the fill on the last bar of each pass, "every" on each bar', () => {
+  const bars = (where: 'end' | 'every', repeat: number) =>
+    [...new Set(buildPhrase(['G', 'C', 'D', 'Em'], arp, repeat, 0, { style: 'bass-run', where }).events.filter((e) => e.fill).map((e) => e.bar))];
+  assert.deepEqual(bars('end', 1), [3]);
+  assert.deepEqual(bars('end', 2), [3, 7]);
+  assert.ok(bars('every', 1).length >= 3);
+});
+
+test('no fill, or a fill that has no notes, leaves the phrase unchanged', () => {
+  const base = buildPhrase(['C', 'G'], arp).events;
+  assert.deepEqual(buildPhrase(['C', 'G'], arp, 1, 0, { style: 'none', where: 'every' }).events, base);
+  assert.deepEqual(buildPhrase(['C', 'C'], arp, 1, 0, { style: 'approach', where: 'every' }).events, buildPhrase(['C', 'C'], arp).events);
+});
+
+test('every fill style works with every pattern and the capo raises it with the rest', () => {
+  for (const style of ['bass-run', 'approach', 'hammer', 'lick'] as const) {
+    for (const p of PATTERNS) {
+      const { events } = buildPhrase(['G', 'Em', 'C', 'D'], p, 2, 0, { style, where: 'every' });
+      assert.ok(events.some((e) => e.fill), `${style} on ${p.id} produced no fill`);
+      for (const e of events) assert.ok(e.step < p.steps.length, `${style} on ${p.id}: step out of range`);
+    }
+  }
+  const a = buildPhrase(['G', 'C'], arp, 1, 0, { style: 'hammer', where: 'every' }).events.filter((e) => e.fill);
+  const b = buildPhrase(['G', 'C'], arp, 1, 3, { style: 'hammer', where: 'every' }).events.filter((e) => e.fill);
+  assert.deepEqual(b.map((e) => e.midi - 3), a.map((e) => e.midi));
+});
+
+test('tab shows the fill notes and marks where the fill is', () => {
+  const [g] = tabBars(['G', 'C'], arp, { style: 'bass-run', where: 'every' });
+  assert.ok(g.marks.includes('~'));
+  assert.equal(g.marks.indexOf('~'), 6 * 3, 'the mark sits under the first fill slot');
+  const [plain] = tabBars(['G', 'C'], arp);
+  assert.equal(plain.marks.trim(), '');
+});
+
 test('tab has six rows of equal width with fret numbers on the right strings', () => {
   const [bar] = tabBars(['C'], arp);
   assert.equal(bar.rows.length, 6);

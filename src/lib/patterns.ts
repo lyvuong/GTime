@@ -1,6 +1,7 @@
 // Picking patterns and rhythm styles that turn a chord into notes, plus a plain-text tab of the result.
 // The rhythms are simplified guitar versions of the usual accompaniment for each style.
 import { chordShape, OPEN_STRINGS, type Shape } from './chordShapes.ts';
+import { fillNotes, guessKey, type FillOptions } from './fills.ts';
 
 // Picked patterns name a string by role; strums and rhythms use several strings.
 //   B = lowest played string   A = next one up   M1 / M2 = middle strings   T = highest played string
@@ -104,6 +105,7 @@ export interface NoteEvent {
   fret: number;
   midi: number; // sounding pitch, with the capo
   gain: number;
+  fill?: boolean; // part of a fill rather than the pattern
 }
 
 export interface Phrase {
@@ -126,11 +128,13 @@ function stringFor(token: Token, played: number[]): number {
   }
 }
 
-/** One bar per chord, repeated `repeat` times, played with the pattern. */
-export function buildPhrase(chords: string[], pattern: Pattern, repeat = 1, capo = 0): Phrase {
+/** One bar per chord, repeated `repeat` times, played with the pattern, optionally with a fill leading into each next chord. */
+export function buildPhrase(chords: string[], pattern: Pattern, repeat = 1, capo = 0, fill?: FillOptions): Phrase {
   const sequence = Array.from({ length: Math.max(1, repeat) }, () => chords).flat();
   const shapes = sequence.map((c) => chordShape(c));
   const events: NoteEvent[] = [];
+  const key = fill && fill.style !== 'none' ? guessKey(chords, fill.keyHint) : null;
+  const slotsPerBeat = Math.round(pattern.steps.length / pattern.beats); // the last beat is where a fill goes
 
   shapes.forEach((shape, bar) => {
     if (!shape) return; // not a chord: that bar rests
@@ -138,12 +142,30 @@ export function buildPhrase(chords: string[], pattern: Pattern, repeat = 1, capo
     const note = (step: number, order: number, s: number, gain: number): NoteEvent => ({
       bar, step, order, string: s, fret: shape[s], midi: OPEN_STRINGS[s] + shape[s] + capo, gain,
     });
+
+    // A fill takes over the last slots of the bar; the earlier slots keep the pattern
+    const atEnd = fill?.where === 'every' || bar % chords.length === chords.length - 1;
+    const nextIndex = (bar + 1) % sequence.length;
+    const fillRun =
+      fill && key && atEnd
+        ? fillNotes(fill.style, { chord: sequence[bar], next: sequence[nextIndex], shape, nextShape: shapes[nextIndex], key, slots: slotsPerBeat, bar })
+        : [];
+    const firstFillStep = pattern.steps.length - fillRun.length;
+
     pattern.steps.forEach((token, step) => {
+      if (step >= firstFillStep && fillRun.length > 0) return; // replaced by the fill
       if (!token) return;
       if (token === 'D') played.forEach((s, i) => events.push(note(step, i, s, step % 2 === 0 ? 0.32 : 0.26)));
       else if (token === 'C') played.slice(-Math.min(4, played.length - 1)).forEach((s, i) => events.push(note(step, i, s, 0.28)));
       else if (token === 'U') played.slice(-3).reverse().forEach((s, i) => events.push(note(step, i, s, 0.2)));
       else events.push(note(step, 0, stringFor(token, played), token === 'B' ? 0.5 : token === 'A' ? 0.42 : 0.38));
+    });
+
+    fillRun.forEach((n, i) => {
+      events.push({
+        bar, step: firstFillStep + i, order: 0, string: n.string, fret: n.fret,
+        midi: OPEN_STRINGS[n.string] + n.fret + capo, gain: fill?.style === 'lick' ? 0.42 : 0.5, fill: true,
+      });
     });
   });
   return { events, stepsPerBar: pattern.steps.length, beats: pattern.beats, bars: sequence.length, shapes };
@@ -158,13 +180,20 @@ export interface TabBar {
 const CELL = 3;
 
 /** Plain-text guitar tab of one pass through the chords. */
-export function tabBars(chords: string[], pattern: Pattern): TabBar[] {
-  const phrase = buildPhrase(chords, pattern);
+export function tabBars(chords: string[], pattern: Pattern, fill?: FillOptions): TabBar[] {
+  const phrase = buildPhrase(chords, pattern, 1, 0, fill);
   return chords.map((chord, bar) => {
     const cells: string[][] = Array.from({ length: 6 }, () => Array(pattern.steps.length).fill(''));
-    for (const e of phrase.events) if (e.bar === bar) cells[e.string][e.step] = String(e.fret);
+    const fillSteps = new Set<number>();
+    for (const e of phrase.events) {
+      if (e.bar !== bar) continue;
+      cells[e.string][e.step] = String(e.fret);
+      if (e.fill) fillSteps.add(e.step);
+    }
     const rows = [5, 4, 3, 2, 1, 0].map((s) => cells[s].map((c) => c.padEnd(CELL, '-')).join(''));
-    const marks = pattern.steps.map((t) => (t === 'D' || t === 'C' ? '↓' : t === 'U' ? '↑' : '').padEnd(CELL, ' ')).join('');
+    // Strum arrows above the staff; a wavy mark shows where a fill takes over
+    const mark = (t: Token | null, step: number) => (fillSteps.has(step) ? '~' : t === 'D' || t === 'C' ? '↓' : t === 'U' ? '↑' : '');
+    const marks = pattern.steps.map((t, step) => mark(t, step).padEnd(CELL, ' ')).join('');
     return { chord, marks, rows };
   });
 }
