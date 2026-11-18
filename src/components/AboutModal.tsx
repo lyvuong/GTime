@@ -49,7 +49,7 @@ const FEATURES = [
     icon: Library,
     tint: 'bg-emerald-500/10 text-emerald-400',
     title: 'Personal Library',
-    body: 'Save songs you like. They live on your device, open instantly, and work without a connection.',
+    body: 'Every song you open is saved automatically. They live on your device, open instantly, and work without a connection. GTime also tallies how often you search for and play each song, so your favourites rise to the top. Counts stay on your device.',
   },
   {
     icon: Mic,
@@ -128,7 +128,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
               {[
                 ['Search', 'Type part of a song name or lyric. Accents are optional.'],
                 ['Open', 'Tap a result. GTime fetches that one song and converts it to a ChordPro chord sheet.'],
-                ['Play', 'Transpose to a comfortable key, and tap Save to keep it in your library.'],
+                ['Play', 'Transpose to a comfortable key, and it is saved to your library automatically.'],
               ].map(([title, body], i) => (
                 <li key={title} className="flex gap-3 items-start p-3 rounded-xl bg-stage-bg border border-stage-border/70">
                   <span className="w-6 h-6 rounded-full bg-cyan-500/15 text-cyan-400 font-mono font-bold flex items-center justify-center flex-shrink-0">
