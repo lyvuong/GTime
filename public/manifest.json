@@ -1,0 +1,10 @@
+{
+  "name": "GTime",
+  "short_name": "GTime",
+  "description": "Guitar Time: find Vietnamese songs and read them as chord sheets",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0d14",
+  "theme_color": "#0a0d14",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

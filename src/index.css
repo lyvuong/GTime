@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root, html, body {
+  --color-stage-bg: 10 13 20;
+  --color-stage-card: 18 24 36;
+  --color-stage-cardHover: 26 35 51;
+  --color-stage-border: 31 45 66;
+  --color-stage-accent: 56 189 248;
+  --color-stage-text: 248 250 252;
+  --color-stage-muted: 148 163 184;
+}
+
+html.theme-stage-dark, body.theme-stage-dark {
+  --color-stage-bg: 10 13 20;
+  --color-stage-card: 18 24 36;
+  --color-stage-cardHover: 26 35 51;
+  --color-stage-border: 31 45 66;
+  --color-stage-text: 248 250 252;
+  --color-stage-muted: 148 163 184;
+}
+
+html.theme-oled-black, body.theme-oled-black {
+  --color-stage-bg: 0 0 0;
+  --color-stage-card: 10 13 18;
+  --color-stage-cardHover: 20 24 32;
+  --color-stage-border: 31 38 51;
+  --color-stage-text: 255 255 255;
+  --color-stage-muted: 156 163 175;
+}
+
+html.theme-amber-warm, body.theme-amber-warm {
+  --color-stage-bg: 19 14 7;
+  --color-stage-card: 31 23 12;
+  --color-stage-cardHover: 44 32 18;
+  --color-stage-border: 59 44 25;
+  --color-stage-text: 254 243 199;
+  --color-stage-muted: 217 119 6;
+}
+
+html.theme-light-contrast, body.theme-light-contrast {
+  --color-stage-bg: 248 250 252;
+  --color-stage-card: 255 255 255;
+  --color-stage-cardHover: 241 245 249;
+  --color-stage-border: 226 232 240;
+  --color-stage-text: 15 23 42;
+  --color-stage-muted: 100 116 139;
+}
+
+html.theme-paper-warm, body.theme-paper-warm {
+  --color-stage-bg: 251 249 244;
+  --color-stage-card: 255 255 255;
+  --color-stage-cardHover: 245 240 230;
+  --color-stage-border: 231 222 205;
+  --color-stage-text: 41 37 36;
+  --color-stage-muted: 120 113 108;
+}
+
+html.theme-nordic-light, body.theme-nordic-light {
+  --color-stage-bg: 240 249 255;
+  --color-stage-card: 255 255 255;
+  --color-stage-cardHover: 224 242 254;
+  --color-stage-border: 186 230 253;
+  --color-stage-text: 12 74 110;
+  --color-stage-muted: 3 105 161;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: rgb(var(--color-stage-bg));
+  color: rgb(var(--color-stage-text));
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: text;
+  overflow: hidden;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* Custom Stage Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-stage-border));
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-stage-accent));
+}
+
+/* Native dropdown popups ignore parent styling; make them follow the theme */
+select {
+  background-color: rgb(var(--color-stage-card));
+  color: rgb(var(--color-stage-text));
+}
+select option,
+select optgroup {
+  background-color: rgb(var(--color-stage-card));
+  color: rgb(var(--color-stage-text));
+}
