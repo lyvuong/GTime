@@ -46,3 +46,33 @@ export function readingFor(freq: number, tuning: Tuning): TunerReading {
 }
 
 export const IN_TUNE_CENTS = 5;
+
+/** Search range for the pitch detector: a little beyond the lowest and highest string. */
+export function tuningRange(tuning: Tuning): { min: number; max: number } {
+  const lo = midiToFreq(Math.min(...tuning.strings));
+  const hi = midiToFreq(Math.max(...tuning.strings));
+  // Capping the top at 1.5x the highest string keeps its 2nd harmonic out of range
+  return { min: lo * 0.75, max: hi * 1.5 };
+}
+
+/**
+ * Folds a detected frequency by whole octaves onto the nearest string. Guitars often have a weak
+ * fundamental, so detectors read a low E an octave high (or a high E an octave low) and the
+ * needle would flip between notes. A pitch already within 60 cents of a string is left alone.
+ *
+ * A pitch between two strings an octave apart (E3 sits between E2 and E4) fits both. `hint` is
+ * the note currently shown, and wins that tie; without one, the lower note is assumed because a
+ * weak fundamental on a low string is the usual cause.
+ */
+export function snapToTuning(freq: number, tuning: Tuning, hint: number | null = null): number {
+  const nearest = (f: number) => Math.abs(readingFor(f, tuning).cents);
+  if (nearest(freq) <= 60) return freq;
+
+  const fits = [freq / 2, freq * 2].map((f) => ({ f, c: nearest(f) })).filter((x) => x.c <= 60);
+  if (fits.length === 0) return freq;
+  const bestCents = Math.min(...fits.map((x) => x.c));
+  const ties = fits.filter((x) => x.c - bestCents <= 15);
+  if (hint) ties.sort((a, b) => Math.abs(Math.log2(a.f / hint)) - Math.abs(Math.log2(b.f / hint)));
+  else ties.sort((a, b) => a.f - b.f);
+  return ties[0].f;
+}

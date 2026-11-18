@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Mic, MicOff, Volume2 } from 'lucide-react';
 import { detectPitch } from '../lib/pitch';
-import { IN_TUNE_CENTS, midiToFreq, noteName, noteOctave, readingFor, TUNINGS } from '../lib/tuning';
+import { PitchTracker } from '../lib/pitchTracker';
+import { IN_TUNE_CENTS, midiToFreq, noteName, noteOctave, readingFor, snapToTuning, TUNINGS, tuningRange } from '../lib/tuning';
 
 type Status = 'idle' | 'starting' | 'listening' | 'error';
 
-const FFT_SIZE = 4096;
-const FRAME_MS = 50;
-const HOLD_MS = 500; // keep the last reading briefly so the display doesn't flicker between plucks
+const FFT_SIZE = 8192; // a long window: low strings need several full cycles to read steadily
+const FRAME_MS = 55;
 const GAUGE_RANGE = 50; // cents shown either side of centre
+// Open the app with ?debug to get a "Copy debug log" button on the tuner (for diagnosing a problem)
+const DEBUG = new URLSearchParams(window.location.search).has('debug');
 
-const median = (values: number[]) => {
-  const s = [...values].sort((a, b) => a - b);
-  return s[Math.floor(s.length / 2)];
+const blockRms = (buf: Float32Array) => {
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+  return Math.sqrt(sum / buf.length);
 };
 
 function loadTuningId(): string {
@@ -35,8 +38,13 @@ export function Tuner() {
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef(0);
   const toneUntilRef = useRef(0); // ignore the mic while a reference tone is playing
+  const trackerRef = useRef(new PitchTracker());
+  const debugLogRef = useRef<string[]>([]);
+  const [copied, setCopied] = useState(false);
 
-  const tuning = TUNINGS.find((t) => t.id === tuningId) ?? TUNINGS[0];
+  const tuning =TUNINGS.find((t) => t.id === tuningId) ?? TUNINGS[0];
+  const tuningRef = useRef(tuning);
+  tuningRef.current = tuning; // the listening loop reads the tuning that is current, not the one at start
   const reading = useMemo(() => (freq ? readingFor(freq, tuning) : null), [freq, tuning]);
 
   const stop = useCallback(() => {
@@ -70,24 +78,28 @@ export function Tuner() {
       ctxRef.current = ctx;
 
       const buf = new Float32Array(analyser.fftSize);
-      const recent: number[] = [];
+      const tracker = trackerRef.current;
+      tracker.reset();
       let last = 0;
-      let lastHit = 0;
       const loop = (t: number) => {
         rafRef.current = requestAnimationFrame(loop);
         if (t - last < FRAME_MS || t < toneUntilRef.current) return;
         last = t;
         analyser.getFloatTimeDomainData(buf);
-        const f = detectPitch(buf, ctx.sampleRate);
-        if (f) {
-          recent.push(f);
-          if (recent.length > 5) recent.shift();
-          lastHit = t;
-          setFreq(median(recent));
-        } else if (t - lastHit > HOLD_MS) {
-          recent.length = 0;
-          setFreq(null);
+        // Only look for pitches a string could make, fold octave slips onto the nearest string,
+        // then smooth. The tracker keeps the note up while it fades and ignores noise afterwards
+        const tn = tuningRef.current;
+        const { min, max } = tuningRange(tn);
+        const raw = detectPitch(buf, ctx.sampleRate, min, max);
+        const snapped = raw === null ? null : snapToTuning(raw, tn, tracker.value);
+        const level = blockRms(buf);
+        const shown = tracker.push(snapped, t, level);
+        if (DEBUG) {
+          const log = debugLogRef.current;
+          log.push(`${Math.round(t)},${level.toFixed(4)},${raw?.toFixed(2) ?? ''},${snapped?.toFixed(2) ?? ''},${shown?.toFixed(2) ?? ''}`);
+          if (log.length > 400) log.shift();
         }
+        setFreq(shown);
       };
       rafRef.current = requestAnimationFrame(loop);
       setStatus('listening');
@@ -124,10 +136,13 @@ export function Tuner() {
     osc.start(now);
     osc.stop(now + 1.7);
     toneUntilRef.current = performance.now() + 1800;
+    trackerRef.current.reset();
     setFreq(null);
   };
 
   const changeTuning = (id: string) => {
+    trackerRef.current.reset();
+    setFreq(null);
     setTuningId(id);
     try {
       localStorage.setItem('gtime_tuning', id);
@@ -194,7 +209,7 @@ export function Tuner() {
           ))}
           {reading && (
             <div
-              className={`absolute top-1/2 w-1.5 h-9 -translate-x-1/2 -translate-y-1/2 rounded-full transition-[left] duration-100 ${
+              className={`absolute top-1/2 w-1.5 h-9 -translate-x-1/2 -translate-y-1/2 rounded-full transition-[left] duration-150 ${
                 inTune ? 'bg-emerald-400' : 'bg-stage-accent'
               }`}
               style={{ left: `${50 + needle}%` }}
@@ -254,6 +269,23 @@ export function Tuner() {
         </button>
       )}
       {status === 'error' && <p className="text-sm text-red-400 text-center">{error}</p>}
+      {DEBUG && (
+        <button
+          onClick={async () => {
+            const text = `ms,level,raw_hz,snapped_hz,shown_hz,tuning=${tuning.id}\n${debugLogRef.current.join('\n')}`;
+            try {
+              await navigator.clipboard.writeText(text);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            } catch {
+              window.prompt('Copy this log', text);
+            }
+          }}
+          className="w-full py-2 rounded-xl border border-dashed border-stage-border text-xs text-stage-muted"
+        >
+          {copied ? 'Copied' : `Copy debug log (${debugLogRef.current.length} frames)`}
+        </button>
+      )}
       {status === 'idle' && (
         <p className="text-[11px] text-stage-muted text-center">
           The tuner listens through your microphone and nothing is recorded or sent anywhere.
