@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeft, BookmarkCheck, BookmarkPlus, ExternalLink, Library, Loader2, Minus, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, BookmarkCheck, BookmarkPlus, ExternalLink, Info, Library, Loader2, Minus, Plus, Search, Trash2 } from 'lucide-react';
+import { AboutModal } from './components/AboutModal';
 import { ChordProViewer } from './components/ChordProViewer';
 import { parseChordPro, transposeParsedSong } from './lib/chordParser';
 import { keyPrefersFlats } from './lib/chordTransposer';
@@ -28,6 +29,7 @@ export default function App() {
   const [opening, setOpening] = useState<string | null>(null);
   const [viewing, setViewing] = useState<Viewing | null>(null);
   const [semitones, setSemitones] = useState(0);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
 
   const library = useLiveQuery(() => db.songs.orderBy('savedAt').reverse().toArray(), []);
   const savedIds = useMemo(() => new Set((library ?? []).map((s) => s.sourceId)), [library]);
@@ -149,6 +151,10 @@ export default function App() {
         <h1 className="text-2xl font-extrabold tracking-tight">
           G<span className="text-stage-accent">Time</span>
         </h1>
+        <div className="flex items-center gap-2">
+        <button onClick={() => setIsAboutOpen(true)} className="p-2 rounded-lg text-stage-muted hover:text-stage-text hover:bg-stage-cardHover" aria-label="About GTime" title="About">
+          <Info className="w-5 h-5" />
+        </button>
         <div className="flex rounded-xl border border-stage-border overflow-hidden text-sm font-semibold">
           <button onClick={() => setTab('search')} className={`px-3 py-1.5 flex items-center gap-1.5 ${tab === 'search' ? 'bg-stage-accent/20 text-stage-accent' : 'text-stage-muted'}`}>
             <Search className="w-4 h-4" /> Search
@@ -156,6 +162,7 @@ export default function App() {
           <button onClick={() => setTab('library')} className={`px-3 py-1.5 flex items-center gap-1.5 ${tab === 'library' ? 'bg-stage-accent/20 text-stage-accent' : 'text-stage-muted'}`}>
             <Library className="w-4 h-4" /> Library{library?.length ? ` (${library.length})` : ''}
           </button>
+        </div>
         </div>
       </header>
 
@@ -219,6 +226,8 @@ export default function App() {
           </>
         )}
       </main>
+
+      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
     </div>
   );
 }
