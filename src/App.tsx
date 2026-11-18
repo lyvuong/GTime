@@ -191,7 +191,7 @@ export default function App() {
             </span>
           )}
         </div>
-        <IntroCard key={viewing.sourceId} options={intros} />
+        <IntroCard key={viewing.sourceId} options={intros} time={shown.metadata.time} capo={shown.metadata.capo} />
         <div className="flex-1 min-h-0">
           <ChordProViewer song={shown} zoomLevel={1} columnsPreference={1} />
         </div>
