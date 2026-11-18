@@ -223,9 +223,9 @@ export default function App() {
         </div>
         {/* The play-along section: the intro, then the song itself */}
         <div className="border-t-2 border-stage-border bg-stage-card/95">
-        <IntroCard key={viewing.sourceId} options={intros} current={intro} onPick={setIntroId} capo={shown.metadata.capo} keyHint={shown.metadata.key} rhythm={rhythm} />
+        <IntroCard key={`intro-${viewing.sourceId}`} options={intros} current={intro} onPick={setIntroId} capo={shown.metadata.capo} keyHint={shown.metadata.key} rhythm={rhythm} />
         <PlayAlongBar
-          key={viewing.sourceId}
+          key={`play-${viewing.sourceId}`}
           intro={intro}
           songId={String(viewing.sourceId)}
           song={shown}

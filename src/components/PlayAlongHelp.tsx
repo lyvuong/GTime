@@ -10,6 +10,7 @@ const STEPS: [string, string][] = [
   ['Fills', "A fill is a short run of notes that joins one chord to the next. Song fills are longer than the intro's: by default they go at the end of each sung line, where the singer rests. You can move them to the end of each paragraph or to every chord change, or turn them off."],
   ['Loop this paragraph', 'Repeats the paragraph that is playing (a verse or the chorus) until you switch it off. Use it to practise a part that is hard to play or sing.'],
   ['Include the intro', 'Choose an intro in "Intro ideas", then switch on "Intro" next to the Play along button so the song starts with it (the same switch is in the settings). The count-in comes first, then the intro, then the song.'],
+  ['Drums', 'Add a drum part under the guitar with the "Drums" button next to Intro (or pick the amount in the rhythm bar). Light is a soft kick and rim click. Full adds the snare and hi-hat, and rolls through a fill into a crash. Each rhythm has its own groove: bolero, bossa nova, waltz, shuffle and so on. The drum volume is in the settings. The sounds are synthesized, so they are simple.'],
   ['Pause, resume, tempo', 'Pause keeps your place. Changing the rhythm, tempo, fills, transposing or chord lengths while playing carries on from the same bar. Click adds a metronome click on every beat.'],
 ];
 

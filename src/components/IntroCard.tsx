@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Music2, Play, Square } from 'lucide-react';
 import type { IntroOption } from '../lib/intro';
 import { FILLS, type FillOptions, type FillStyle } from '../lib/fills';
+import { addDrums } from '../lib/drums';
 import { buildPhrase, tabBars } from '../lib/patterns';
 import type { Rhythm } from '../lib/useRhythm';
 import { playPhrase } from '../lib/synth';
@@ -33,7 +34,7 @@ export function IntroCard({ options, current, onPick, capo, keyHint, rhythm }: P
   const [tabOpen, setTabOpen] = useState(loadTabOpen);
   const stopRef = useRef<(() => void) | null>(null);
 
-  const { pattern, bpm, fillStyle, fillWhere, setFillStyle, setFillWhere } = rhythm;
+  const { pattern, bpm, fillStyle, fillWhere, setFillStyle, setFillWhere, drums } = rhythm;
   const toggleTab = () => {
     setTabOpen((o) => {
       try {
@@ -51,7 +52,7 @@ export function IntroCard({ options, current, onPick, capo, keyHint, rhythm }: P
   const run = () => {
     if (!current) return;
     stop();
-    const phrase = buildPhrase(current.chords, pattern, current.repeat, capo ?? 0, fill);
+    const phrase = addDrums(buildPhrase(current.chords, pattern, current.repeat, capo ?? 0, fill), pattern, drums);
     setPlaying(true);
     setPlayingBar(0);
     stopRef.current = playPhrase(phrase, {
@@ -69,7 +70,7 @@ export function IntroCard({ options, current, onPick, capo, keyHint, rhythm }: P
   useEffect(() => stop, []);
   useEffect(() => {
     stopRef.current?.();
-  }, [open, current?.id, pattern.id, fillStyle, fillWhere]);
+  }, [open, current?.id, pattern.id, fillStyle, fillWhere, drums]);
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {

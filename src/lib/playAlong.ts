@@ -2,12 +2,15 @@
 // are scheduled a little ahead of the clock instead of all at once, and playback can start part-way
 // through, loop one paragraph, and report which bar is sounding so the sheet can follow along.
 import type { NoteEvent, Phrase } from './patterns';
+import { drumBuffers } from './drumKit';
+import type { DrumEvent } from './drums';
 import { renderPluck } from './pluck';
 import { claimAudio, releaseAudio } from './synth';
 
 export interface PlayAlongLive {
   volume: number; // 0 to 1, read as the track plays
   click: boolean; // a click on every beat
+  drums: number; // 0 to 1, how loud the drum part is
 }
 
 export interface PlayAlongOptions {
@@ -48,6 +51,17 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
     buffer.copyToChannel(wave, 0);
     buffers.set(e.midi, buffer);
   }
+  // The drum part has its own level, so it can be turned up or down while it plays
+  const drumMaster = ctx.createGain();
+  drumMaster.gain.value = live.drums;
+  drumMaster.connect(master);
+  const kit = drumBuffers(ctx, phrase.drums ?? []);
+  const drumsByBar = new Map<number, DrumEvent[]>();
+  for (const d of phrase.drums ?? []) {
+    const list = drumsByBar.get(d.bar);
+    if (list) list.push(d);
+    else drumsByBar.set(d.bar, [d]);
+  }
   const byBar = new Map<number, NoteEvent[]>();
   for (const e of phrase.events) {
     const list = byBar.get(e.bar);
@@ -67,6 +81,16 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
     const gain = ctx.createGain();
     gain.gain.value = e.gain;
     src.connect(gain).connect(master);
+    src.start(when);
+    track(src);
+  };
+
+  const drumAt = (d: DrumEvent, when: number) => {
+    const src = ctx.createBufferSource();
+    src.buffer = kit.get(d.kind)!;
+    const gain = ctx.createGain();
+    gain.gain.value = d.gain;
+    src.connect(gain).connect(drumMaster);
     src.start(when);
     track(src);
   };
@@ -98,6 +122,7 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
   const scheduleBar = () => {
     log.push({ bar, time: t });
     for (const q of cuesByBar.get(bar) ?? []) log.push({ bar: bar + q / 4, time: t + (q / 4) * barSeconds });
+    for (const d of drumsByBar.get(bar) ?? []) drumAt(d, t + d.step * stepSeconds);
     for (const e of byBar.get(bar) ?? []) noteAt(e, t + e.step * stepSeconds + e.order * STRUM_SPREAD);
     if (live.click) for (let b = 0; b < phrase.beats; b++) clickAt(t + b * beatSeconds, b === 0);
     t += barSeconds;
@@ -128,6 +153,7 @@ export function playAlong(phrase: Phrase, opts: PlayAlongOptions): () => void {
   const tick = () => {
     if (stopped) return;
     master.gain.value = live.volume;
+    drumMaster.gain.value = live.drums;
     while (!done && t < ctx.currentTime + LOOKAHEAD) scheduleBar();
     const now = ctx.currentTime;
     while (log.length > 1 && log[1].time <= now) log.shift();

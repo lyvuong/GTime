@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { DRUM_LEVELS, type DrumLevel } from './drums';
 import type { FillStyle, FillWhere } from './fills';
 import type { SongFillWhere } from './songPhrase';
 import { patternsFor, type Pattern } from './patterns';
@@ -8,7 +9,7 @@ import { snapTempo } from './tempo';
 // the intro's fill is a short flourish, the song's fill is longer and goes where the singer rests.
 // Everything is remembered on this device.
 
-const KEYS = { pattern: 'gtime_rhythm', fill: 'gtime_fill', where: 'gtime_fill_where', songFill: 'gtime_song_fill', songWhere: 'gtime_song_fill_where' };
+const KEYS = { pattern: 'gtime_rhythm', fill: 'gtime_fill', where: 'gtime_fill_where', songFill: 'gtime_song_fill', songWhere: 'gtime_song_fill_where', drums: 'gtime_drums', drumsBack: 'gtime_drums_last' };
 const FILL_STYLES: FillStyle[] = ['none', 'bass-run', 'approach', 'hammer', 'lick'];
 
 function read(key: string): string | null {
@@ -36,6 +37,9 @@ export interface Rhythm {
   setFillStyle: (style: FillStyle) => void;
   fillWhere: FillWhere;
   setFillWhere: (where: FillWhere) => void;
+  drums: DrumLevel; // a drum part under the intro and the song
+  setDrums: (level: DrumLevel) => void;
+  toggleDrums: () => void; // off, or back to the level used last
   songFill: FillStyle; // the song's fill
   setSongFill: (style: FillStyle) => void;
   songFillWhere: SongFillWhere;
@@ -60,6 +64,11 @@ export function useRhythm(time?: string): Rhythm {
     return saved === 'end' || saved === 'every' ? saved : 'line';
   });
 
+  const [drums, setDrumsState] = useState<DrumLevel>(() => {
+    const saved = read(KEYS.drums) as DrumLevel | null;
+    return saved && DRUM_LEVELS.includes(saved) ? saved : 'off';
+  });
+
   const patterns = useMemo(() => patternsFor(time), [time]);
   const pattern = patterns.find((p) => p.id === patternId) ?? patterns[0];
 
@@ -82,6 +91,18 @@ export function useRhythm(time?: string): Rhythm {
     setFillWhere: (where) => {
       setFillWhereState(where);
       write(KEYS.where, where);
+    },
+    drums,
+    setDrums: (level) => {
+      setDrumsState(level);
+      write(KEYS.drums, level);
+      if (level !== 'off') write(KEYS.drumsBack, level);
+    },
+    toggleDrums: () => {
+      const back = read(KEYS.drumsBack) === 'full' ? 'full' : 'light';
+      const next: DrumLevel = drums === 'off' ? back : 'off';
+      setDrumsState(next);
+      write(KEYS.drums, next);
     },
     songFill,
     setSongFill: (style) => {

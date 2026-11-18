@@ -1,6 +1,7 @@
 // Picking patterns and rhythm styles that turn a chord into notes, plus a plain-text tab of the result.
 // The rhythms are simplified guitar versions of the usual accompaniment for each style.
 import { chordShape, OPEN_STRINGS, type Shape } from './chordShapes.ts';
+import type { DrumEvent } from './drums.ts';
 import { fillNotes, guessKey, type FillOptions } from './fills.ts';
 
 // Picked patterns name a string by role; strums and rhythms use several strings.
@@ -114,6 +115,7 @@ export interface Phrase {
   beats: number; // beats per bar
   bars: number;
   shapes: (Shape | null)[]; // the fingering used for each bar
+  drums?: DrumEvent[]; // the drum part, when there is one (see drums.ts)
 }
 
 function stringFor(token: Token, played: number[]): number {

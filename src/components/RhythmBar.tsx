@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { CircleHelp, Minus, Plus } from 'lucide-react';
+import { addDrums, DRUM_LEVELS } from '../lib/drums';
 import { buildPhrase, type Pattern } from '../lib/patterns';
 import { playPhrase } from '../lib/synth';
 import { snapTempo, stepTempo, TEMPOS } from '../lib/tempo';
@@ -20,7 +21,7 @@ export function RhythmBar({ rhythm, demoChords, capo, keyHint }: { rhythm: Rhyth
   const listen = (key: string, p: Pattern, tempo: number, fill?: { style: Rhythm['songFill'] }) => {
     stop();
     const chords = demoChords.length ? demoChords : ['C', 'Am', 'F', 'G'];
-    const phrase = buildPhrase(chords, p, 2, capo ?? 0, fill ? { style: fill.style, where: 'every', long: true, keyHint } : undefined);
+    const phrase = addDrums(buildPhrase(chords, p, 2, capo ?? 0, fill ? { style: fill.style, where: 'every', long: true, keyHint } : undefined), p, rhythm.drums);
     setListening(key);
     stopRef.current = playPhrase(phrase, {
       bpm: tempo,
@@ -63,6 +64,18 @@ export function RhythmBar({ rhythm, demoChords, capo, keyHint }: { rhythm: Rhyth
       >
         <CircleHelp className="w-4 h-4" />
       </button>
+      <select
+        value={rhythm.drums}
+        onChange={(e) => rhythm.setDrums(e.target.value as (typeof DRUM_LEVELS)[number])}
+        aria-label="Drums"
+        className="px-2 py-1 rounded-lg bg-stage-bg border border-stage-border text-xs font-semibold focus:outline-none focus:border-stage-accent"
+      >
+        {DRUM_LEVELS.map((l) => (
+          <option key={l} value={l}>
+            {l === 'off' ? 'No drums' : l === 'light' ? 'Drums: light' : 'Drums: full'}
+          </option>
+        ))}
+      </select>
       <div className="flex-1 basis-40 flex items-center gap-1 text-[11px] text-stage-muted">
         <button onClick={() => rhythm.setBpm(stepTempo(bpm, -1))} className="p-1 rounded-full hover:text-stage-text" aria-label="Slower">
           <Minus className="w-3.5 h-3.5" />

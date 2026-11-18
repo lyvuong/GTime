@@ -1,5 +1,6 @@
 // Plays a phrase through Web Audio using plucked-string notes. Browser only.
 import type { Phrase } from './patterns';
+import { drumBuffers } from './drumKit';
 import { renderPluck } from './pluck';
 
 export interface PlayOptions {
@@ -43,6 +44,19 @@ export function playPhrase(phrase: Phrase, { bpm, onBar, onEnd }: PlayOptions): 
     gain.gain.value = e.gain;
     src.connect(gain).connect(master);
     src.start(t0 + e.bar * barSeconds + e.step * stepSeconds + e.order * STRUM_SPREAD);
+    sources.push(src);
+  }
+
+  // The drum part, when there is one
+  const drums = phrase.drums ?? [];
+  const kit = drumBuffers(ctx, drums);
+  for (const d of drums) {
+    const src = ctx.createBufferSource();
+    src.buffer = kit.get(d.kind)!;
+    const gain = ctx.createGain();
+    gain.gain.value = d.gain;
+    src.connect(gain).connect(master);
+    src.start(t0 + d.bar * barSeconds + d.step * stepSeconds);
     sources.push(src);
   }
 
