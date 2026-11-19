@@ -10,7 +10,7 @@ interface Props {
   position: number | null; // where the play-along is, in bars from the start of the song
   follow: boolean;
   startBar: number | null; // where playback will start from
-  onPickBar: (bar: number) => void;
+  onPickBar?: (bar: number) => void; // without it the bars are not tappable
   lengthEdit?: LengthEdit;
 }
 
@@ -136,7 +136,7 @@ export function GridChart({ song, timing, position, follow, startBar, onPickBar,
 
       <div className="flex items-start gap-3 pb-2 text-[11px] text-stage-muted">
         <div className="flex-1 space-y-1">
-          <p>{editing ? 'Tap a chord to change how long it lasts.' : 'Tap a bar to start playing from it.'}</p>
+          {(editing || onPickBar) && <p>{editing ? 'Tap a chord to change how long it lasts.' : 'Tap a bar to start playing from it.'}</p>}
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="inline-flex items-center gap-1 text-stage-text">
               <SimileMark className="!w-4 !h-4" /> same as the bar before
@@ -227,7 +227,7 @@ export function GridChart({ song, timing, position, follow, startBar, onPickBar,
   );
 }
 
-function BarBox({ bar, simile, beats, quarter, isStart, lengthEdit, onPickBar }: { bar: GridBar; simile: Simile; beats: number; quarter: number | null; isStart: boolean; lengthEdit?: LengthEdit; onPickBar: (bar: number) => void }) {
+function BarBox({ bar, simile, beats, quarter, isStart, lengthEdit, onPickBar }: { bar: GridBar; simile: Simile; beats: number; quarter: number | null; isStart: boolean; lengthEdit?: LengthEdit; onPickBar?: (bar: number) => void }) {
   const playing = quarter !== null;
   const several = bar.cells.length > 1;
   const onPick = lengthEdit?.onPick ?? null;
@@ -265,8 +265,8 @@ function BarBox({ bar, simile, beats, quarter, isStart, lengthEdit, onPickBar }:
   return (
     <div
       data-bar={bar.bar}
-      onClick={() => !onPick && onPickBar(bar.bar)}
-      className={`relative flex divide-x divide-stage-border/60 rounded-lg border bg-stage-card transition-colors min-h-[3.4rem] ${!onPick ? 'cursor-pointer' : ''} ${
+      onClick={() => !onPick && onPickBar?.(bar.bar)}
+      className={`relative flex divide-x divide-stage-border/60 rounded-lg border bg-stage-card transition-colors min-h-[3.4rem] ${!onPick && onPickBar ? 'cursor-pointer' : ''} ${
         playing ? 'border-stage-accent ring-2 ring-stage-accent/60' : isStart ? 'border-sky-400 border-l-4' : 'border-stage-border'
       }`}
     >

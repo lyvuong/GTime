@@ -6,13 +6,9 @@ import { LibraryBackup } from './components/LibraryBackup';
 import { PasteSong } from './components/PasteSong';
 import { SongEditor } from './components/SongEditor';
 import { Tuner } from './components/Tuner';
-import { IntroCard } from './components/IntroCard';
-import { PlayAlongBar } from './components/PlayAlongBar';
-import { RhythmBar } from './components/RhythmBar';
-import { useRhythm } from './lib/useRhythm';
-import type { LineRef, SongTiming, TokenRef } from './lib/songTiming';
-import { suggestIntros } from './lib/intro';
-import { ChordProViewer, type LengthEdit } from './components/ChordProViewer';
+import { LooperBar } from './components/LooperBar';
+import { songTiming } from './lib/songTiming';
+import { ChordProViewer } from './components/ChordProViewer';
 import { GridChart } from './components/GridChart';
 import { parseChordPro, transposeChordProText, transposeParsedSong } from './lib/chordParser';
 import { keyPrefersFlats, transposeChord } from './lib/chordTransposer';
@@ -20,7 +16,7 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { useTheme } from './lib/useTheme';
 import { db } from './lib/db';
 import { searchApi, songApi, type SearchResult } from './lib/api';
-import { recordPlay, recordSearches } from './lib/libraryStore';
+import { loadLengths, recordPlay, recordSearches } from './lib/libraryStore';
 import { sortLibrary, topSearched, type LibrarySort, type SongStats } from './lib/stats';
 import { checkForUpdate } from './utils/updateCheck';
 
@@ -183,18 +179,18 @@ export default function App() {
     return transposeParsedSong(parsed, semitones, flats);
   }, [parsed, semitones]);
 
-  const intros = useMemo(() => (shown ? suggestIntros(shown) : []), [shown]);
-
-  const rhythm = useRhythm(shown?.metadata.time);
-  const [active, setActive] = useState<TokenRef | null>(null);
-  const [follow, setFollow] = useState(true);
-  const [introId, setIntroId] = useState<string | null>(null);
-  const intro = intros.find((i) => i.id === introId) ?? intros[0];
-  const [lengthEdit, setLengthEdit] = useState<LengthEdit | undefined>();
-  const [startLine, setStartLine] = useState<LineRef | null>(null);
-  const [startAtBar, setStartAtBar] = useState<number | null>(null);
-  const [timing, setTiming] = useState<SongTiming | null>(null);
-  const [position, setPosition] = useState<number | null>(null);
+  // Chord lengths set by hand are saved with the song; the grid chart lays its bars out from them
+  const [lengths, setLengths] = useState<Map<string, number>>(new Map());
+  const viewingId = viewing ? String(viewing.sourceId) : null;
+  useEffect(() => {
+    let live = true;
+    setLengths(new Map());
+    if (viewingId) loadLengths(viewingId).then((m) => live && setLengths(m)).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [viewingId]);
+  const timing = useMemo(() => (shown ? songTiming(shown, 'auto', undefined, lengths) : null), [shown, lengths]);
   const [view, setViewState] = useState<'lyrics' | 'grid'>(() => {
     try {
       return localStorage.getItem('gtime_view') === 'grid' ? 'grid' : 'lyrics';
@@ -210,14 +206,6 @@ export default function App() {
       /* storage unavailable */
     }
   };
-  useEffect(() => {
-    setActive(null);
-    setStartLine(null);
-    setStartAtBar(null);
-    setPosition(null);
-    setIntroId(null);
-  }, [viewing?.sourceId]);
-
   if (viewing && shown) {
     const saved = savedIds.has(viewing.sourceId);
     const gridOnly = shown.sections.length > 0 && shown.sections.every((s) => s.grid); // a song written as grids has no lyrics to show
@@ -287,32 +275,6 @@ export default function App() {
           )}
         </div>
         {editing && <SongEditor title={viewing.title} text={viewing.chordpro} onSave={saveEdit} onClose={() => setEditing(false)} />}
-        <RhythmBar rhythm={rhythm} demoChords={intros[0]?.chords ?? []} capo={shown.metadata.capo} keyHint={shown.metadata.key} />
-        {/* Play along: transport and settings, then the intro ideas */}
-        <div className="border-b-2 border-stage-border bg-stage-card/95">
-        <PlayAlongBar
-          key={`play-${viewing.sourceId}`}
-          intro={intro}
-          songId={String(viewing.sourceId)}
-          song={shown}
-          rhythm={rhythm}
-          capo={shown.metadata.capo}
-          keyHint={shown.metadata.key}
-          startLine={startLine}
-          startAtBar={startAtBar}
-          onClearStart={() => {
-            setStartLine(null);
-            setStartAtBar(null);
-          }}
-          follow={follow}
-          onFollowChange={setFollow}
-          onActive={setActive}
-          onLengthEdit={setLengthEdit}
-          onTiming={setTiming}
-          onPosition={setPosition}
-        />
-        <IntroCard key={`intro-${viewing.sourceId}`} options={intros} current={intro} onPick={setIntroId} capo={shown.metadata.capo} keyHint={shown.metadata.key} rhythm={rhythm} />
-        </div>
         {!gridOnly && (
         <div className="flex items-center gap-1 px-3 pt-2 text-xs" role="tablist" aria-label="Song view">
           {(
@@ -338,31 +300,19 @@ export default function App() {
             <GridChart
               song={shown}
               timing={timing}
-              position={position}
-              follow={follow}
-              startBar={startAtBar}
-              onPickBar={(bar) => {
-                setStartLine(null);
-                setStartAtBar((cur) => (cur === bar ? null : bar));
-              }}
-              lengthEdit={lengthEdit}
+              position={null}
+              follow={false}
+              startBar={null}
             />
           ) : (
           <ChordProViewer
             song={shown}
             zoomLevel={1}
             columnsPreference={1}
-            activeToken={active}
-            startLine={startLine}
-            follow={follow}
-            lengthEdit={lengthEdit}
-            onLineTap={(s, l) => {
-              setStartAtBar(null);
-              setStartLine((cur) => (cur && cur.s === s && cur.l === l ? null : { s, l }));
-            }}
           />
           )}
         </div>
+        <LooperBar key={`loop-${viewing.sourceId}`} />
       </div>
     );
   }
