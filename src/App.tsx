@@ -8,9 +8,10 @@ import { IntroCard } from './components/IntroCard';
 import { PlayAlongBar } from './components/PlayAlongBar';
 import { RhythmBar } from './components/RhythmBar';
 import { useRhythm } from './lib/useRhythm';
-import type { LineRef, TokenRef } from './lib/songTiming';
+import type { LineRef, SongTiming, TokenRef } from './lib/songTiming';
 import { suggestIntros } from './lib/intro';
 import { ChordProViewer, type LengthEdit } from './components/ChordProViewer';
+import { GridChart } from './components/GridChart';
 import { parseChordPro, transposeParsedSong } from './lib/chordParser';
 import { keyPrefersFlats } from './lib/chordTransposer';
 import { ThemeToggle } from './components/ThemeToggle';
@@ -170,9 +171,29 @@ export default function App() {
   const intro = intros.find((i) => i.id === introId) ?? intros[0];
   const [lengthEdit, setLengthEdit] = useState<LengthEdit | undefined>();
   const [startLine, setStartLine] = useState<LineRef | null>(null);
+  const [startAtBar, setStartAtBar] = useState<number | null>(null);
+  const [timing, setTiming] = useState<SongTiming | null>(null);
+  const [position, setPosition] = useState<number | null>(null);
+  const [view, setViewState] = useState<'lyrics' | 'grid'>(() => {
+    try {
+      return localStorage.getItem('gtime_view') === 'grid' ? 'grid' : 'lyrics';
+    } catch {
+      return 'lyrics';
+    }
+  });
+  const setView = (v: 'lyrics' | 'grid') => {
+    setViewState(v);
+    try {
+      localStorage.setItem('gtime_view', v);
+    } catch {
+      /* storage unavailable */
+    }
+  };
   useEffect(() => {
     setActive(null);
     setStartLine(null);
+    setStartAtBar(null);
+    setPosition(null);
     setIntroId(null);
   }, [viewing?.sourceId]);
 
@@ -210,7 +231,39 @@ export default function App() {
           )}
         </div>
         <RhythmBar rhythm={rhythm} demoChords={intros[0]?.chords ?? []} capo={shown.metadata.capo} keyHint={shown.metadata.key} />
+        <div className="flex items-center gap-1 px-3 pt-2 text-xs" role="tablist" aria-label="Song view">
+          {(
+            [
+              ['lyrics', 'Lyrics'],
+              ['grid', 'Grid chart'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={view === id}
+              onClick={() => setView(id)}
+              className={`px-3 py-1 rounded-full border font-semibold ${view === id ? 'bg-stage-accent/20 border-stage-accent text-stage-accent' : 'border-stage-border text-stage-muted'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="flex-1 min-h-0">
+          {view === 'grid' && timing ? (
+            <GridChart
+              song={shown}
+              timing={timing}
+              position={position}
+              follow={follow}
+              startBar={startAtBar}
+              onPickBar={(bar) => {
+                setStartLine(null);
+                setStartAtBar((cur) => (cur === bar ? null : bar));
+              }}
+              lengthEdit={lengthEdit}
+            />
+          ) : (
           <ChordProViewer
             song={shown}
             zoomLevel={1}
@@ -219,8 +272,12 @@ export default function App() {
             startLine={startLine}
             follow={follow}
             lengthEdit={lengthEdit}
-            onLineTap={(s, l) => setStartLine((cur) => (cur && cur.s === s && cur.l === l ? null : { s, l }))}
+            onLineTap={(s, l) => {
+              setStartAtBar(null);
+              setStartLine((cur) => (cur && cur.s === s && cur.l === l ? null : { s, l }));
+            }}
           />
+          )}
         </div>
         {/* The play-along section: the intro, then the song itself */}
         <div className="border-t-2 border-stage-border bg-stage-card/95">
@@ -234,11 +291,17 @@ export default function App() {
           capo={shown.metadata.capo}
           keyHint={shown.metadata.key}
           startLine={startLine}
-          onClearStart={() => setStartLine(null)}
+          startAtBar={startAtBar}
+          onClearStart={() => {
+            setStartLine(null);
+            setStartAtBar(null);
+          }}
           follow={follow}
           onFollowChange={setFollow}
           onActive={setActive}
           onLengthEdit={setLengthEdit}
+          onTiming={setTiming}
+          onPosition={setPosition}
         />
         </div>
       </div>

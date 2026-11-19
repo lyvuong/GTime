@@ -9,7 +9,7 @@ import { addDrums, shiftDrums } from '../lib/drums';
 import { loadLengths, saveLengths } from '../lib/libraryStore';
 import { buildPhrase, type Phrase } from '../lib/patterns';
 import { buildSongPhrase, type SongFillWhere } from '../lib/songPhrase';
-import { blockOf, lineKey, songTiming, type BarsMode, type LineRef, type TokenRef } from '../lib/songTiming';
+import { blockOf, lineKey, songTiming, type BarsMode, type LineRef, type SongTiming, type TokenRef } from '../lib/songTiming';
 import type { LengthEdit } from './ChordProViewer';
 import type { Rhythm } from '../lib/useRhythm';
 import { PlayAlongHelp } from './PlayAlongHelp';
@@ -22,17 +22,20 @@ interface Props {
   capo?: number;
   keyHint?: string;
   startLine: LineRef | null; // set by tapping a line
+  startAtBar?: number | null; // set by tapping a bar on the grid chart
   onClearStart: () => void;
   follow: boolean;
   onFollowChange: (follow: boolean) => void;
   onActive: (ref: TokenRef | null) => void; // the chord that is sounding
   onLengthEdit: (edit: LengthEdit) => void; // lets the sheet show and pick chord lengths
+  onTiming?: (timing: SongTiming) => void; // the song's bars, for the grid chart
+  onPosition?: (bar: number | null) => void; // where playback is, in bars from the start of the song
 }
 
 const CYCLE = [undefined, 1, 2, 3, 4, 6, 8]; // auto, then ¼ ½ ¾ 1 1½ 2 bars (counted in quarters of a bar)
 const LABEL: Record<number, string> = { 1: '¼', 2: '½', 3: '¾', 4: '1', 6: '1½', 8: '2' };
 
-export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, startLine, onClearStart, follow, onFollowChange, onActive, onLengthEdit }: Props) {
+export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, startLine, startAtBar = null, onClearStart, follow, onFollowChange, onActive, onLengthEdit, onTiming, onPosition }: Props) {
   const { pattern, bpm, songFill, songFillWhere, drums, bass } = rhythm;
   const bassOn = bass !== 'off';
   const [open, setOpen] = useState(false);
@@ -58,6 +61,7 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
   }, [songId]);
   const [editing, setEditing] = useState(false);
   const timing = useMemo(() => songTiming(song, mode, undefined, lengths), [song, mode, lengths]);
+  useEffect(() => onTiming?.(timing), [timing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const changeLengths = (next: Map<string, number>) => {
     setLengths(next);
@@ -161,6 +165,7 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
       setState((s) => (s === 'playing' ? 'stopped' : s));
       setBar(null);
       onActive(null);
+      onPosition?.(null);
     };
     stopRef.current = playAlong(phrase, {
       bpm,
@@ -174,17 +179,20 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
       onBar: (b) => {
         if (b === null) {
           onActive(null);
+          onPosition?.(null);
           return;
         }
         barRef.current = Math.floor(b);
         setBar(b);
         onActive(refFor(b));
+        onPosition?.(b - offset >= 0 ? b - offset : null);
       },
       onEnd: end,
     });
   };
 
-  const startBar = () => (startLine ? (timing.lineStartBar.get(lineKey(startLine.s, startLine.l)) ?? 0) + offset : 0);
+  const startBar = () =>
+    startAtBar !== null ? startAtBar + offset : startLine ? (timing.lineStartBar.get(lineKey(startLine.s, startLine.l)) ?? 0) + offset : 0;
 
   const toggle = () => {
     if (state === 'playing') {
@@ -200,16 +208,15 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
   };
 
   // Tapping a line while it is playing jumps there; while stopped it just moves the start marker
-  const lastStart = useRef<LineRef | null>(startLine);
+  const lastStart = useRef<{ line: LineRef | null; bar: number | null }>({ line: startLine, bar: startAtBar });
   useEffect(() => {
-    if (startLine && startLine !== lastStart.current && state !== 'stopped') {
-      start(startBar(), false);
-    } else if (startLine && startLine !== lastStart.current) {
-      barRef.current = startBar();
-    }
-    lastStart.current = startLine;
+    const was = lastStart.current;
+    const changed = Boolean(startLine && startLine !== was.line) || (startAtBar !== null && startAtBar !== was.bar);
+    if (changed && state !== 'stopped') start(startBar(), false);
+    else if (changed) barRef.current = startBar();
+    lastStart.current = { line: startLine, bar: startAtBar };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startLine]);
+  }, [startLine, startAtBar]);
 
   // A different rhythm, tempo, fill, transposition or length continues from the current bar
   const first = useRef(true);

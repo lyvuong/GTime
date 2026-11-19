@@ -37,6 +37,7 @@ It is a companion to the Nhạc StageChord app and shares its ChordPro engine, t
 - **Intro ideas.** For any song, GTime works out ways to start it from the song's own chords: the verse loop, a turnaround, or a chorus hook. It follows your transposition and capo. Pick a picking pattern or rhythm to see it as guitar tab, then press Play to hear it.
 - **Play along.** Plays the whole song as a backing track in the rhythm and tempo you chose, in the song's key. A count-in bar comes first, the chord that is sounding is highlighted, and the sheet scrolls to keep your line in view. The song ends on one held chord.
 - **Start anywhere, loop a paragraph.** Tap a line of lyrics to start from there. Loop a verse or chorus to drill a hard part.
+- **Grid chart.** Switch a song from the lyrics to a chart of bars, four to a row (eight on wide screens), with the chord in each box and a few lyric words beneath it. It uses lead-sheet notation: slashes after a chord (`C / / /`) mean the same chord on every beat; a slash with two dots is the simile mark for "same as the bar before", and a double slash across a barline means "same as the two bars before"; a part that repeats exactly is shown once between repeat signs (thick and thin barlines with two dots) with a count (`×3`), and while it plays the chart says which pass you are on. A bar with two chords is split in two. Untick **Fold repeats** to see every bar. During play-along the sounding bar lights up and the chart follows it. Tap a bar to start from it.
 - **Per-chord lengths.** GTime guesses how long each chord lasts from the words under it. When it sounds wrong, set each chord to ¼, ½, ¾, 1, 1½ or 2 bars. Your lengths are saved with the song.
 - **Fills.** Short runs of notes that join one chord to the next: bass run, approach note, chord hammer-on, or a melodic lick. The intro and the song have separate fill settings.
 - **A backing band, all synthesized.** There are no audio files. Everything is built from scratch in your browser.
@@ -80,7 +81,10 @@ These settings apply to both the intro and the backing track, and they are remem
 ### 4. Try an intro
 Open **Intro ideas** under the song. Choose one of the suggested intros, pick a fill if you like, and press **Play intro**. The tab shows what to play.
 
-### 5. Play along
+### 5. Switch to the grid chart
+Above the song, tap **Grid chart** instead of **Lyrics**. Tap any bar to start playing from it. While the song plays, the current bar is outlined and the current chord is filled in. Repeated parts are shown once with a count such as ×3; untick **Fold repeats** to see every bar. Your choice is remembered.
+
+### 6. Play along
 Under the song is the **Play along** bar:
 
 | Control | What it does |
@@ -103,13 +107,13 @@ Tips:
 - Changing the rhythm, tempo, fills, key or chord lengths while playing carries on from the same bar.
 - Bass notes are low. On a phone speaker they are faint, and headphones show them best. The bass voices add upper harmonics so you can still hear the line on small speakers.
 
-### 6. Tune your guitar
+### 7. Tune your guitar
 Open the **Tuner** tab, choose a tuning, allow the microphone, and pluck a string. Tap a string to hear its reference note instead.
 
-### 7. Your library
+### 8. Your library
 Open the **Library** tab to see your saved songs. Tap one to open it. Use the bin icon to remove it, or **Reset counts** to clear the play and search tallies.
 
-### 8. Back up your library
+### 9. Back up your library
 At the bottom of the **Library** tab, the **Library backup** section saves your songs, chord lengths, play counts and settings:
 - **Save to Drive** signs you in to Google and writes one file, `GTime-library.json`, to your own Drive. A later save replaces it.
 - **Restore from Drive** reads that file back. Songs are added to your library, and a song you already have is replaced by the backup's copy. Play counts keep the larger number. Settings are restored and the page reloads once.
@@ -210,10 +214,11 @@ GTime/
 ├── src/
 │   ├── App.tsx               The app shell: search, library and tuner tabs
 │   ├── components/           Chord sheet, Play along bar, rhythm bar, intro card,
-│   │                         tuner, About and help dialogs, library backup
+│   │                         grid chart, tuner, About and help dialogs, library backup
 │   ├── lib/
 │   │   ├── chordParser.ts    ChordPro parsing and chord transposing
 │   │   ├── songTiming.ts     Works out how long each chord lasts
+│   │   ├── gridChart.ts      Lays the bars out in rows for the grid chart
 │   │   ├── patterns.ts       The rhythms and how they become notes
 │   │   ├── fills.ts          Fill styles
 │   │   ├── drums.ts          Drum grooves   (drumKit.ts makes the sounds)
