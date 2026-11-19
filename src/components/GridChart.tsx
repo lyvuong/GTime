@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ParsedSong } from '../lib/chordParser';
-import { beatsPerBar, buildGrid, foldGrid, locateInBlocks, playingAt, refId, shortWords, similes, slashCount, type GridBar, type GridBlock, type GridCell, type Simile } from '../lib/gridChart';
+import { beatsPerBar, buildGrid, exportGridChordPro, foldGrid, locateInBlocks, playingAt, refId, shortWords, similes, slashCount, type GridBar, type GridBlock, type GridCell, type Simile } from '../lib/gridChart';
 import type { SongTiming } from '../lib/songTiming';
 import type { LengthEdit } from './ChordProViewer';
 
@@ -93,6 +93,23 @@ export function GridChart({ song, timing, position, follow, startBar, onPickBar,
   }, [follow, activeBlock]);
 
   const cols = wide ? 8 : 4;
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    const text = exportGridChordPro(song, timing);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // no clipboard (an insecure page, say): hand it over as a file instead
+      const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${song.metadata.title}.cho`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
   const toggleFold = (value: boolean) => {
     setFold(value);
     try {
@@ -132,9 +149,14 @@ export function GridChart({ song, timing, position, follow, startBar, onPickBar,
             </span>
           </p>
         </div>
-        <label className="flex items-center gap-1.5 whitespace-nowrap">
-          <input type="checkbox" checked={fold} onChange={(e) => toggleFold(e.target.checked)} /> Fold repeats
-        </label>
+        <div className="flex flex-col items-end gap-1">
+          <label className="flex items-center gap-1.5 whitespace-nowrap">
+            <input type="checkbox" checked={fold} onChange={(e) => toggleFold(e.target.checked)} /> Fold repeats
+          </label>
+          <button onClick={copy} title="Copy this chart as ChordPro grid text, to correct and add back with Add a song" className="px-2 py-0.5 rounded-md border border-stage-border font-semibold hover:bg-stage-cardHover whitespace-nowrap">
+            {copied ? 'Copied' : 'Copy as ChordPro grid'}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-3">

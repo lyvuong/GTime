@@ -72,6 +72,11 @@ function collect(song: ParsedSong, timing: SongTiming): { bars: GridBar[]; secti
 
   const sectionAt: SectionAt = new Map();
   song.sections.forEach((section, s) => {
+    if (section.grid) {
+      const bar = timing.sectionStart.get(s);
+      if (bar !== undefined && !sectionAt.has(bar)) sectionAt.set(bar, { title: section.title, type: section.type });
+      return;
+    }
     for (let l = 0; l < section.lines.length; l++) {
       const bar = timing.lineStartBar.get(lineKey(s, l));
       if (bar !== undefined) {
@@ -231,4 +236,47 @@ export function beatsPerBar(time?: string): number {
 /** The slashes after a chord: one for each beat it lasts beyond the first, so a bar of C reads "C / / /". */
 export function slashCount(cell: Pick<GridCell, 'from' | 'to'>, beats: number): number {
   return Math.max(0, Math.round(((cell.to - cell.from) / 4) * beats) - 1);
+}
+
+// ---- Export --------------------------------------------------------------------------------------------------
+
+/**
+ * The song as ChordPro with a grid for each section: the bars as GTime has them (a lyric song's bars are its
+ * guess from the words), one beat to a cell, so they can be corrected by hand and loaded back in.
+ */
+export function exportGridChordPro(song: ParsedSong, timing: SongTiming, perRow = 4): string {
+  const { bars, sectionAt } = collect(song, timing);
+  const beats = beatsPerBar(song.metadata.time);
+  const m = song.metadata;
+  const out: string[] = [`{title: ${m.title}}`];
+  if (m.artist) out.push(`{artist: ${m.artist}}`);
+  if (m.key) out.push(`{key: ${m.key}}`);
+  if (m.capo) out.push(`{capo: ${m.capo}}`);
+  if (m.tempo) out.push(`{tempo: ${m.tempo}}`);
+  out.push(`{time: ${m.time ?? '4/4'}}`);
+
+  let previous: string | null = null; // the span the last cell belonged to, so a chord that carries on shows as "."
+  const barText = (bar: GridBar): string => {
+    const cells: string[] = Array.from({ length: beats }, () => '.');
+    for (const c of bar.cells) {
+      const id = refId(c.ref);
+      const at = Math.min(beats - 1, Math.round((c.from / 4) * beats));
+      if (id !== previous) cells[at] = c.chord;
+      previous = id;
+    }
+    return cells.join(' ');
+  };
+
+  const starts = bars.map((b, i) => (i === 0 || sectionAt.has(b.bar) ? i : -1)).filter((i) => i >= 0);
+  starts.forEach((from, n) => {
+    const to = n + 1 < starts.length ? starts[n + 1] : bars.length;
+    const label = (sectionAt.get(bars[from].bar)?.title ?? `Part ${n + 1}`).replace(/"/g, "'");
+    out.push('', `{start_of_grid label="${label}"}`);
+    for (let i = from; i < to; i += perRow) {
+      const row = bars.slice(i, Math.min(to, i + perRow)).map(barText);
+      out.push(`${i === from ? '||' : '|'} ${row.join(' | ')} ${i + perRow >= to ? '||' : '|'}`);
+    }
+    out.push('{end_of_grid}');
+  });
+  return out.join('\n') + '\n';
 }

@@ -15,10 +15,25 @@ export interface SongLine {
   hasChords?: boolean;
 }
 
+// A chord grid ({start_of_grid}): rows of bars, each bar a row of beats. A beat is a chord, or a hold that
+// carries the chord before it on.
+export interface GridBeat {
+  chords: string[]; // more than one when beats are joined with "~", which share the beat
+  originalChords: string[];
+  hold: boolean;
+}
+export interface GridMeasure {
+  beats: GridBeat[];
+}
+export interface SongGrid {
+  rows: GridMeasure[][];
+}
+
 export interface SongSection {
   type: 'verse' | 'chorus' | 'bridge' | 'intro' | 'outro' | 'solo' | 'general';
   title?: string;
   lines: SongLine[];
+  grid?: SongGrid; // set for a grid section, which has no lyric lines
 }
 
 export interface SongMetadata {
@@ -43,6 +58,68 @@ export interface ParsedSong {
   allChords: string[];
 }
 
+const BARLINE = /(\|\|:?|\|:|:\|:?|\|\.|\|\d+|\|)/;
+const IS_BARLINE = /^(\|\|:?|\|:|:\|:?|\|\.|\|\d+|\|)$/;
+
+/**
+ * Reads the lines of a grid: bars between barlines, a beat to each word. "." (or "/") holds the chord before,
+ * "A~B" puts two chords in one beat, "%" repeats the bar before and "%%" the bar two back. A part between
+ * "|:" and ":|" is written out twice, so playing and drawing need no special case for repeats.
+ */
+export function parseGrid(lines: string[]): { grid: SongGrid; chords: string[] } {
+  const rows: GridMeasure[][] = [];
+  const all: GridMeasure[] = []; // every bar so far, for repeats
+  const chords = new Set<string>();
+  let repeatFrom = 0;
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line.includes('|')) continue;
+    const row: GridMeasure[] = [];
+    const add = (m: GridMeasure) => {
+      row.push(m);
+      all.push(m);
+    };
+    for (const part of line.split(BARLINE)) {
+      const text = part.trim();
+      if (!text) continue;
+      if (IS_BARLINE.test(text)) {
+        if (text.startsWith(':')) for (const m of all.slice(repeatFrom)) add(m); // the repeat: play the part again
+        if (text.endsWith(':')) repeatFrom = all.length; // "|:" or ":|:" opens the next repeat
+        continue;
+      }
+      const words = text.split(/\s+/);
+      if (words.length === 1 && (words[0] === '%' || words[0] === '%%')) {
+        const back = all[all.length - words[0].length];
+        if (back) add(back);
+        continue;
+      }
+      add({
+        beats: words.map((w) => {
+          if (w === '.' || w === '/' || w === '_') return { chords: [], originalChords: [], hold: true };
+          const each = w.split('~').filter(Boolean);
+          each.forEach((c) => chords.add(c));
+          return { chords: each, originalChords: each, hold: false };
+        }),
+      });
+    }
+    if (row.length) rows.push(row);
+  }
+  return { grid: { rows }, chords: [...chords] };
+}
+
+/** A grid's label tells what kind of section it is: "Verse 1", "Điệp khúc", "Bridge", "Outro / Gian Tấu". */
+function sectionTypeOf(label: string): SongSection['type'] {
+  const l = label.toLowerCase();
+  if (/chorus|điệp|diep/.test(l)) return 'chorus';
+  if (/bridge/.test(l)) return 'bridge';
+  if (/intro|dạo đầu/.test(l)) return 'intro';
+  if (/outro|gian tấu|giang tau/.test(l)) return 'outro';
+  if (/solo/.test(l)) return 'solo';
+  if (/verse|bài|khổ/.test(l)) return 'verse';
+  return 'general';
+}
+
 // Parses raw ChordPro text into a structured AST
 export function parseChordPro(text: string): ParsedSong {
   const lines = text.split(/\r?\n/);
@@ -59,9 +136,36 @@ export function parseChordPro(text: string): ParsedSong {
 
   const allChordsSet = new Set<string>();
 
+  // A grid section: its lines are collected until {end_of_grid}, then read as bars
+  let gridLines: string[] | null = null;
+  let gridLabel = 'Grid';
+  const finishGrid = () => {
+    if (gridLines === null) return;
+    const { grid, chords } = parseGrid(gridLines);
+    chords.forEach((c) => allChordsSet.add(c));
+    sections.push({ type: sectionTypeOf(gridLabel), title: gridLabel, lines: [], grid });
+    currentSection = { type: 'general', lines: [] };
+    gridLines = null;
+  };
+
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i];
     const trimmed = rawLine.trim();
+
+    if (gridLines !== null) {
+      if (/^\{\s*(end_of_grid|eog)\s*\}$/i.test(trimmed)) finishGrid();
+      else if (trimmed !== '') gridLines.push(rawLine);
+      continue;
+    }
+    const gridStart = trimmed.match(/^\{\s*(?:start_of_grid|sog)\b\s*:?\s*(.*?)\s*\}$/i);
+    if (gridStart) {
+      if (currentSection.lines.length > 0) sections.push(currentSection);
+      const attrs = gridStart[1];
+      const label = attrs.match(/label\s*=\s*"([^"]*)"/i) ?? attrs.match(/label\s*=\s*'([^']*)'/i) ?? attrs.match(/label\s*=\s*(\S+)/i);
+      gridLabel = label ? label[1] : attrs && !attrs.includes('=') ? attrs : 'Grid';
+      gridLines = [];
+      continue;
+    }
 
     // Check for ChordPro Directives: {directive: value} or {directive}
     if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
@@ -210,6 +314,7 @@ export function parseChordPro(text: string): ParsedSong {
     currentSection.lines.push(parsedLine);
   }
 
+  finishGrid(); // a grid left open at the end of the text still counts
   if (currentSection.lines.length > 0) {
     sections.push(currentSection);
   }
@@ -300,6 +405,13 @@ export function transposeParsedSong(song: ParsedSong, semitones: number, preferF
 
   const newSections: SongSection[] = song.sections.map(section => ({
     ...section,
+    grid: section.grid && {
+      rows: section.grid.rows.map((row) =>
+        row.map((bar) => ({
+          beats: bar.beats.map((beat) => ({ ...beat, chords: beat.originalChords.map((c) => transposeChord(c, semitones, preferFlats)) })),
+        })),
+      ),
+    },
     lines: section.lines.map(line => {
       if (line.type !== 'lyric_line' || !line.tokens) return line;
 

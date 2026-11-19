@@ -19,6 +19,7 @@ export interface ChordSpan {
   bars: number;
   words: number;
   ref: TokenRef;
+  fixed?: number; // length in quarters of a bar, set by a grid (otherwise estimated from the words)
 }
 
 export type BarsMode = 'auto' | 1 | 2;
@@ -40,6 +41,7 @@ export interface SongTiming {
   lineStartBar: Map<string, number>; // "s-l" -> the bar a line starts on (a line without chords starts on the next chord)
   lineEnds: number[]; // the last bar of each sung line (where the singer rests); not the final line
   blocks: { start: number; end: number }[]; // paragraphs as bar ranges, end exclusive
+  sectionStart: Map<number, number>; // section index -> the bar a grid section starts on
   totalBars: number;
 }
 
@@ -57,6 +59,7 @@ export function songTiming(
   const spans: ChordSpan[] = [];
   const lineFirstSpan = new Map<string, number>();
   const waiting: string[] = []; // lines with no chords, which start on the next chord
+  const sectionFirstSpan = new Map<number, number>(); // grid sections: the span each starts on
   const blockStarts: number[] = [0]; // span indexes where a paragraph begins
 
   const startBlock = () => {
@@ -65,6 +68,27 @@ export function songTiming(
 
   song.sections.forEach((section, s) => {
     startBlock();
+    if (section.grid) {
+      // A grid says exactly how long each chord lasts: a bar is four quarters however many beats it has
+      sectionFirstSpan.set(s, spans.length);
+      section.grid.rows.forEach((row, l) => {
+        let t = 0;
+        lineFirstSpan.set(lineKey(s, l), spans.length);
+        for (const bar of row) {
+          const beat = 4 / Math.max(1, bar.beats.length);
+          for (const b of bar.beats) {
+            const last = spans[spans.length - 1];
+            if (b.hold) {
+              if (last?.fixed !== undefined) last.fixed += beat;
+              else spans.push({ chord: 'N.C.', bars: 1, words: 0, ref: { s, l, t: t++ }, fixed: beat });
+            } else {
+              for (const chord of b.chords) spans.push({ chord, bars: 1, words: 0, ref: { s, l, t: t++ }, fixed: beat / b.chords.length });
+            }
+          }
+        }
+      });
+      return;
+    }
     section.lines.forEach((line, l) => {
       if (line.type === 'empty') return startBlock();
       if (line.type !== 'lyric_line' || !line.tokens) return;
@@ -90,26 +114,29 @@ export function songTiming(
   for (const w of waiting) lineFirstSpan.set(w, Math.max(0, spans.length - 1)); // trailing lines with no chord after them
 
   // Words to quarter-bars (a chord can be set by hand to a quarter, half, one or more bars)
+  const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
+  const round9 = (n: number) => Math.round(n * 1e9) / 1e9;
+  const EPS = 1e-6; // so that a chord ending a third of a bar short of a barline, by rounding, still counts as ending on it
   const startQ: number[] = [];
   let q = 0;
   for (const span of spans) {
     const own = lengths?.get(`${span.ref.s}-${span.ref.l}-${span.ref.t}`);
-    const quarters = own ?? 4 * (mode === 'auto' ? Math.max(1, Math.min(4, Math.round(span.words / wordsPerBar))) : mode);
+    const quarters = span.fixed !== undefined ? round9(span.fixed) : own ?? 4 * (mode === 'auto' ? Math.max(1, Math.min(4, Math.round(span.words / wordsPerBar))) : mode);
     span.bars = quarters / 4;
     startQ.push(q);
-    q += quarters;
+    q = round9(q + quarters);
   }
-  const totalBars = Math.ceil(q / 4);
+  const totalBars = Math.max(0, Math.ceil(q / 4 - EPS));
 
   // Cut the chords at bar lines: a bar holds one chord, or several when some are short
   const segments: Segment[] = [];
   spans.forEach((span, i) => {
     let from = startQ[i];
     const to = from + span.bars * 4;
-    while (from < to) {
-      const bar = Math.floor(from / 4);
+    while (from < to - EPS) {
+      const bar = Math.floor(from / 4 + EPS);
       const end = Math.min(to, (bar + 1) * 4);
-      segments.push({ chord: span.chord, bar, from: from - bar * 4, to: end - bar * 4, ref: span.ref });
+      segments.push({ chord: span.chord, bar, from: round6(from - bar * 4), to: round6(end - bar * 4), ref: span.ref });
       from = end;
     }
   });
@@ -124,7 +151,7 @@ export function songTiming(
     barRef.push(seg.ref);
   }
 
-  const barOf = (quarter: number) => Math.floor(quarter / 4);
+  const barOf = (quarter: number) => Math.floor(quarter / 4 + EPS);
   const lineStartBar = new Map<string, number>();
   for (const [key, spanIndex] of lineFirstSpan) lineStartBar.set(key, barOf(startQ[spanIndex] ?? 0));
 
@@ -134,7 +161,10 @@ export function songTiming(
   const firsts = [...new Set(lineFirstSpan.values())].sort((a, b) => a - b);
   const lineEnds = firsts.slice(1).map((span) => Math.max(0, barOf(startQ[span] - 1)));
 
-  return { spans, chords, barRef, segments, lineStartBar, lineEnds, blocks, totalBars };
+  const sectionStart = new Map<number, number>();
+  for (const [s, index] of sectionFirstSpan) if (index < spans.length) sectionStart.set(s, barOf(startQ[index]));
+
+  return { spans, chords, barRef, segments, lineStartBar, lineEnds, blocks, sectionStart, totalBars };
 }
 
 /** The paragraph (as a bar range) that a bar falls in. */

@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowLeft, BookmarkCheck, ExternalLink, Info, Library, Loader2, Mic, Minus, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react';
 import { AboutModal } from './components/AboutModal';
 import { LibraryBackup } from './components/LibraryBackup';
+import { PasteSong } from './components/PasteSong';
 import { Tuner } from './components/Tuner';
 import { IntroCard } from './components/IntroCard';
 import { PlayAlongBar } from './components/PlayAlongBar';
@@ -199,6 +200,8 @@ export default function App() {
 
   if (viewing && shown) {
     const saved = savedIds.has(viewing.sourceId);
+    const gridOnly = shown.sections.length > 0 && shown.sections.every((s) => s.grid); // a song written as grids has no lyrics to show
+    const mode = gridOnly ? 'grid' : view;
     return (
       <div className="h-dvh flex flex-col bg-stage-bg text-stage-text">
         <div className="flex items-center gap-2 p-2 border-b border-stage-border bg-stage-card">
@@ -216,14 +219,16 @@ export default function App() {
           </div>
           <div className="flex-1" />
           <ThemeToggle mode={theme.mode} onNext={theme.next} />
-          <a
-            href={viewing.sourceUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="px-2 py-1.5 rounded-lg hover:bg-stage-cardHover text-xs text-stage-muted flex items-center gap-1"
-          >
-            <ExternalLink className="w-3.5 h-3.5" /> hopamchuan.com
-          </a>
+          {viewing.sourceUrl.startsWith('http') && (
+            <a
+              href={viewing.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="px-2 py-1.5 rounded-lg hover:bg-stage-cardHover text-xs text-stage-muted flex items-center gap-1"
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> hopamchuan.com
+            </a>
+          )}
           {saved && (
             <span className="px-3 py-1.5 rounded-lg bg-stage-accent/15 border border-stage-accent/40 text-stage-accent text-sm font-semibold flex items-center gap-1.5">
               <BookmarkCheck className="w-4 h-4" /> In library
@@ -231,6 +236,7 @@ export default function App() {
           )}
         </div>
         <RhythmBar rhythm={rhythm} demoChords={intros[0]?.chords ?? []} capo={shown.metadata.capo} keyHint={shown.metadata.key} />
+        {!gridOnly && (
         <div className="flex items-center gap-1 px-3 pt-2 text-xs" role="tablist" aria-label="Song view">
           {(
             [
@@ -249,8 +255,9 @@ export default function App() {
             </button>
           ))}
         </div>
+        )}
         <div className="flex-1 min-h-0">
-          {view === 'grid' && timing ? (
+          {mode === 'grid' && timing ? (
             <GridChart
               song={shown}
               timing={timing}
@@ -461,6 +468,7 @@ export default function App() {
                 </button>
               </div>
             ))}
+            <PasteSong onAdd={(song) => play(song)} />
             <LibraryBackup />
           </>
         )}

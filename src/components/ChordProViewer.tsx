@@ -261,6 +261,11 @@ const SectionView: React.FC<{
 
       {/* Section Lines */}
       <div className="space-y-[0.5em]">
+        {section.grid?.rows.map((row, r) => (
+          <div key={`grid-${r}`} className="font-mono font-bold text-[0.95em] whitespace-pre-wrap break-words" style={{ color: chordColor || 'rgb(var(--color-stage-accent))' }}>
+            {'| ' + row.map((bar) => bar.beats.map((b) => (b.hold ? '.' : b.chords.join('~'))).join(' ')).join(' | ') + ' |'}
+          </div>
+        ))}
         {section.lines.map((line, lIdx) => (
           <LineView
             key={`line-${lIdx}`}
