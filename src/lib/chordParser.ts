@@ -161,7 +161,7 @@ export function parseChordPro(text: string): ParsedSong {
     if (gridStart) {
       if (currentSection.lines.length > 0) sections.push(currentSection);
       const attrs = gridStart[1];
-      const label = attrs.match(/label\s*=\s*"([^"]*)"/i) ?? attrs.match(/label\s*=\s*'([^']*)'/i) ?? attrs.match(/label\s*=\s*(\S+)/i);
+      const label = attrs.match(/label\s*[=:]\s*"([^"]*)"/i) ?? attrs.match(/label\s*[=:]\s*'([^']*)'/i) ?? attrs.match(/label\s*=\s*(\S+)/i) ?? attrs.match(/label\s*:\s*(.+)$/i);
       gridLabel = label ? label[1] : attrs && !attrs.includes('=') ? attrs : 'Grid';
       gridLines = [];
       continue;
@@ -173,6 +173,12 @@ export function parseChordPro(text: string): ParsedSong {
       const colonIdx = inside.indexOf(':');
       let directive = (colonIdx === -1 ? inside : inside.slice(0, colonIdx)).trim().toLowerCase();
       let value = colonIdx === -1 ? '' : inside.slice(colonIdx + 1).trim();
+      // A section can be named with a label: {start_of_verse label="Verse 1"} or {start_of_verse label: Verse 1}
+      const labelled = inside.match(/^(start_of_verse|start_of_chorus|start_of_bridge|sov|soc|sob)\s+label\s*[:=]\s*(?:"([^"]*)"|'([^']*)'|(.*))$/i);
+      if (labelled) {
+        directive = labelled[1].toLowerCase();
+        value = (labelled[2] ?? labelled[3] ?? labelled[4] ?? '').trim();
+      }
 
       // Normalize short directive names
       if (directive === 't') directive = 'title';

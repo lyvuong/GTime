@@ -147,3 +147,8 @@ test('a song can be rewritten in another key: brackets, grids and the {key} line
   assert.equal(transposeChordProText(text, 12), text);
   assert.deepEqual(parseChordPro(up).allChords, transposeParsedSong(parseChordPro(text), 2).allChords);
 });
+
+test('a section can be named with label="…" or label: …, and a grid too', () => {
+  const song = parseChordPro('{title: x}\n{start_of_verse label="Khổ 1"}\n[C]la la\n{end_of_verse}\n{start_of_chorus label: Điệp khúc}\n[G]la\n{end_of_chorus}\n{start_of_grid label: Intro}\n| C . . . |\n{end_of_grid}\n');
+  assert.deepEqual(song.sections.map((s) => [s.type, s.title]), [['verse', 'Khổ 1'], ['chorus', 'Điệp khúc'], ['intro', 'Intro']]);
+});

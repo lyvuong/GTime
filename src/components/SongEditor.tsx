@@ -7,7 +7,7 @@ const GRID = `{start_of_grid label="Verse 1"}
 || C . . . | G . . . | Am . . . | F . . . ||
 {end_of_grid}`;
 
-const TOOLS: { label: string; hint?: string; snippet: string; line?: boolean }[] = [
+const TOOLS: { label: string; hint?: string; snippet: string; line?: boolean; wrap?: 'verse' | 'chorus' | 'bridge' | 'grid' }[] = [
   { label: '{title}', snippet: '{title: Song title}', line: true },
   { label: '{artist}', snippet: '{artist: Artist}', line: true },
   { label: '{key}', snippet: '{key: C}', line: true },
@@ -15,10 +15,10 @@ const TOOLS: { label: string; hint?: string; snippet: string; line?: boolean }[]
   { label: '{time}', snippet: '{time: 4/4}', line: true },
   { label: '{style}', hint: 'Rhythm style, e.g. Tango, Twist, Bolero', snippet: '{style: Bolero}', line: true },
   { label: '[Chord]', snippet: '[C]' },
-  { label: 'Verse', snippet: '{start_of_verse}\n\n{end_of_verse}', line: true },
-  { label: 'Chorus', snippet: '{start_of_chorus}\n\n{end_of_chorus}', line: true },
-  { label: 'Bridge', snippet: '{start_of_bridge}\n\n{end_of_bridge}', line: true },
-  { label: 'Grid', hint: 'A chord grid: a bar between | marks, a beat to a cell, a dot holds the chord', snippet: GRID, line: true },
+  { label: 'Verse', hint: 'Select lines first to wrap them as a verse', snippet: '{start_of_verse label="Verse"}\n\n{end_of_verse}', line: true, wrap: 'verse' },
+  { label: 'Chorus', hint: 'Select lines first to wrap them as a chorus', snippet: '{start_of_chorus label="Chorus"}\n\n{end_of_chorus}', line: true, wrap: 'chorus' },
+  { label: 'Bridge', hint: 'Select lines first to wrap them as a bridge', snippet: '{start_of_bridge label="Bridge"}\n\n{end_of_bridge}', line: true, wrap: 'bridge' },
+  { label: 'Grid', hint: 'A chord grid: a bar between | marks, a beat to a cell, a dot holds the chord', snippet: GRID, line: true, wrap: 'grid' },
 ];
 
 /** Edits a song's ChordPro text beside a live preview. */
@@ -47,6 +47,26 @@ export function SongEditor({ title, text, onSave, onClose }: { title: string; te
     }, 0);
   };
 
+  // With text selected, a section button wraps those lines as the section, naming it so the name can be typed over
+  const section = (kind: 'verse' | 'chorus' | 'bridge' | 'grid', snippet: string) => {
+    const ta = area.current;
+    if (!ta || ta.selectionStart === ta.selectionEnd) return insert(snippet, true);
+    const from = ta.selectionStart;
+    let to = ta.selectionEnd;
+    if (content[to - 1] === '\n') to--; // a selection that ends at the start of the next line stops on the line before
+    const start = content.lastIndexOf('\n', from - 1) + 1;
+    let end = content.indexOf('\n', to);
+    if (end === -1) end = content.length;
+    const body = content.slice(start, end).replace(/^\n+|\n+$/g, '');
+    const name = kind[0].toUpperCase() + kind.slice(1);
+    const open = `{start_of_${kind} label="`;
+    setContent(content.slice(0, start) + `${open}${name}"}\n${body}\n{end_of_${kind}}` + content.slice(end));
+    setTimeout(() => {
+      ta.focus();
+      ta.setSelectionRange(start + open.length, start + open.length + name.length);
+    }, 0);
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-2 sm:p-4">
       <div role="dialog" aria-label="Edit song" className="bg-stage-card border border-stage-border rounded-2xl w-full max-w-6xl h-[92dvh] flex flex-col shadow-2xl overflow-hidden">
@@ -71,7 +91,7 @@ export function SongEditor({ title, text, onSave, onClose }: { title: string; te
         <div className="px-3 py-2 bg-stage-bg border-b border-stage-border/70 flex items-center gap-1.5 overflow-x-auto text-xs">
           <span className="text-[11px] font-mono text-stage-muted font-bold mr-1 shrink-0">Insert:</span>
           {TOOLS.map((t) => (
-            <button key={t.label} onClick={() => insert(t.snippet, !!t.line)} title={t.hint} className="px-2 py-1 rounded bg-stage-cardHover border border-stage-border font-mono shrink-0 hover:bg-stage-border">
+            <button key={t.label} onClick={() => (t.wrap ? section(t.wrap, t.snippet) : insert(t.snippet, !!t.line))} title={t.hint} className="px-2 py-1 rounded bg-stage-cardHover border border-stage-border font-mono shrink-0 hover:bg-stage-border">
               {t.label}
             </button>
           ))}
