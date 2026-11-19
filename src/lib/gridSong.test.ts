@@ -134,3 +134,16 @@ test('a 3/4 song exports three beats to a bar', () => {
   const waltz = parseChordPro('{title: w}\n{time: 3/4}\n{start_of_grid label="A"}\n| Am . . | E . . | Am . . | E . . |\n{end_of_grid}\n');
   assert.match(exportGridChordPro(waltz, songTiming(waltz)), /\|\| Am \. \. \| E \. \. \| Am \. \. \| E \. \. \|\|/);
 });
+
+import { transposeChordProText } from './chordParser.ts';
+
+test('a song can be rewritten in another key: brackets, grids and the {key} line', () => {
+  const text = '{title: x}\n{key: C}\n\n[C]la la [G/B]la [Am7]la\n\n{start_of_grid}\n|| C . F~G . | % | Am7 . . . ||\n{end_of_grid}\n';
+  const up = transposeChordProText(text, 2);
+  assert.match(up, /\{key: D\}/);
+  assert.match(up, /\[D\]la la \[A\/C#\]la \[Bm7\]la/);
+  assert.match(up, /\|\| D \. G~A \. \| % \| Bm7 \. \. \. \|\|/);
+  assert.match(up, /\{title: x\}/); // other lines are left alone
+  assert.equal(transposeChordProText(text, 12), text);
+  assert.deepEqual(parseChordPro(up).allChords, transposeParsedSong(parseChordPro(text), 2).allChords);
+});

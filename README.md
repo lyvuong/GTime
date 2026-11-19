@@ -66,6 +66,8 @@ It is a companion to the Nhạc StageChord app and shares its ChordPro engine, t
 2. Tap a result. GTime fetches that one song and shows its chord sheet. It is saved to your library automatically.
 
 ### 2. Make it fit your voice
+- Pick a key from the key menu (or use the − and + buttons) to move the song. **Save in …** writes the song in that key so it opens in it next time.
+- Tap **Edit** to change the song as ChordPro text, with a live preview and buttons to insert directives, sections and grids. Edited songs are kept in your library, and a fresh copy from HopAmChuan never replaces them.
 - Use the transpose buttons to move the key up or down. The chord names update everywhere, including the intro and the backing track.
 - If you play with a capo, set it, and the chords shown are the shapes you play.
 

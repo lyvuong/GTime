@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeft, BookmarkCheck, ExternalLink, Info, Library, Loader2, Mic, Minus, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react';
+import { ArrowLeft, BookmarkCheck, ExternalLink, Info, Library, Loader2, Mic, Minus, Pencil, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react';
 import { AboutModal } from './components/AboutModal';
 import { LibraryBackup } from './components/LibraryBackup';
 import { PasteSong } from './components/PasteSong';
+import { SongEditor } from './components/SongEditor';
 import { Tuner } from './components/Tuner';
 import { IntroCard } from './components/IntroCard';
 import { PlayAlongBar } from './components/PlayAlongBar';
@@ -13,8 +14,8 @@ import type { LineRef, SongTiming, TokenRef } from './lib/songTiming';
 import { suggestIntros } from './lib/intro';
 import { ChordProViewer, type LengthEdit } from './components/ChordProViewer';
 import { GridChart } from './components/GridChart';
-import { parseChordPro, transposeParsedSong } from './lib/chordParser';
-import { keyPrefersFlats } from './lib/chordTransposer';
+import { parseChordPro, transposeChordProText, transposeParsedSong } from './lib/chordParser';
+import { keyPrefersFlats, transposeChord } from './lib/chordTransposer';
 import { ThemeToggle } from './components/ThemeToggle';
 import { useTheme } from './lib/useTheme';
 import { db } from './lib/db';
@@ -30,6 +31,7 @@ interface Viewing {
   artist: string;
   chordpro: string;
   sourceUrl: string;
+  edited?: boolean;
 }
 
 type Tab = 'search' | 'library' | 'tuner';
@@ -126,7 +128,9 @@ export default function App() {
     setError('');
     try {
       let song: Viewing;
+      const mine = await db.songs.where('sourceId').equals(id).first();
       try {
+        if (mine?.edited) throw new Error('edited'); // your own version wins over a fresh copy
         const s = await songApi(id, slug);
         song = { sourceId: s.id, slug: s.slug, title: s.title, artist: s.artist, chordpro: s.chordpro, sourceUrl: s.sourceUrl };
       } catch (e) {
@@ -153,6 +157,22 @@ export default function App() {
 
   const removeSaved = async (id: number) => {
     if (confirm('Remove this song from your library?')) await db.songs.delete(id);
+  };
+
+  const [editing, setEditing] = useState(false);
+
+  // Keeps a changed song in the library (adding it if it was not there). Hand-set chord lengths only survive a change of key.
+  const commit = async (next: Viewing, keepLengths: boolean) => {
+    const existing = await db.songs.where('sourceId').equals(next.sourceId).first();
+    await db.songs.put({ ...next, edited: true, id: existing?.id, savedAt: existing?.savedAt ?? Date.now(), lengths: keepLengths ? existing?.lengths : undefined });
+    setViewing({ ...next, edited: true });
+    setSemitones(0);
+  };
+  const saveEdit = async (text: string) => {
+    if (!viewing) return;
+    const meta = parseChordPro(text).metadata;
+    await commit({ ...viewing, chordpro: text, title: meta.title && meta.title !== 'Untitled' ? meta.title : viewing.title, artist: meta.artist ?? viewing.artist }, false);
+    setEditing(false);
   };
 
   const parsed = useMemo(() => (viewing ? parseChordPro(viewing.chordpro) : null), [viewing]);
@@ -212,12 +232,43 @@ export default function App() {
             <button onClick={() => setSemitones((s) => s - 1)} className="p-2 rounded-lg hover:bg-stage-cardHover" aria-label="Transpose down">
               <Minus className="w-4 h-4" />
             </button>
-            <span className="w-8 text-center">{semitones > 0 ? `+${semitones}` : semitones}</span>
+            {parsed?.metadata.key ? (
+              <select
+                aria-label="Key"
+                value={semitones}
+                onChange={(e) => setSemitones(Number(e.target.value))}
+                className="px-1.5 py-1.5 rounded-lg bg-stage-bg border border-stage-border text-stage-text font-bold"
+              >
+                {Array.from({ length: 12 }, (_, i) => i - 5).map((s) => (
+                  <option key={s} value={s}>
+                    {transposeChord(parsed.metadata.key!, s, keyPrefersFlats(parsed.metadata.key!))}
+                    {s === 0 ? ' (original)' : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="w-8 text-center">{semitones > 0 ? `+${semitones}` : semitones}</span>
+            )}
             <button onClick={() => setSemitones((s) => s + 1)} className="p-2 rounded-lg hover:bg-stage-cardHover" aria-label="Transpose up">
               <Plus className="w-4 h-4" />
             </button>
           </div>
+          {semitones !== 0 && (
+            <button
+              onClick={() => {
+                const flats = parsed?.metadata.key ? keyPrefersFlats(parsed.metadata.key) : false;
+                commit({ ...viewing, chordpro: transposeChordProText(viewing.chordpro, semitones, flats) }, true);
+              }}
+              title="Write the song in this key, so it opens in it"
+              className="px-2 py-1.5 rounded-lg border border-stage-border text-xs font-semibold hover:bg-stage-cardHover"
+            >
+              Save in {shown.metadata.key ?? 'this key'}
+            </button>
+          )}
           <div className="flex-1" />
+          <button onClick={() => setEditing(true)} className="px-2 py-1.5 rounded-lg hover:bg-stage-cardHover text-xs font-semibold flex items-center gap-1">
+            <Pencil className="w-3.5 h-3.5" /> Edit
+          </button>
           <ThemeToggle mode={theme.mode} onNext={theme.next} />
           {viewing.sourceUrl.startsWith('http') && (
             <a
@@ -235,6 +286,7 @@ export default function App() {
             </span>
           )}
         </div>
+        {editing && <SongEditor title={viewing.title} text={viewing.chordpro} onSave={saveEdit} onClose={() => setEditing(false)} />}
         <RhythmBar rhythm={rhythm} demoChords={intros[0]?.chords ?? []} capo={shown.metadata.capo} keyHint={shown.metadata.key} />
         {!gridOnly && (
         <div className="flex items-center gap-1 px-3 pt-2 text-xs" role="tablist" aria-label="Song view">

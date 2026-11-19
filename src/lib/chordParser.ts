@@ -439,3 +439,27 @@ export function transposeParsedSong(song: ParsedSong, semitones: number, preferF
     allChords,
   };
 }
+
+const CHORDISH = /^[A-G][#b]?[^\s|~]*$/;
+
+/**
+ * Rewrites ChordPro text in another key: every [chord], every chord in a grid, and {key: …}.
+ * The text keeps its layout, so a song can be saved in the new key and still read the same.
+ */
+export function transposeChordProText(text: string, semitones: number, preferFlats = false): string {
+  if (semitones % 12 === 0) return text;
+  const move = (c: string) => transposeChord(c, semitones, preferFlats);
+  let inGrid = false;
+  return text
+    .split('\n')
+    .map((line) => {
+      const t = line.trim();
+      if (/^\{\s*(start_of_grid|sog)\b/i.test(t)) inGrid = true;
+      else if (/^\{\s*(end_of_grid|eog)\s*\}/i.test(t)) inGrid = false;
+      else if (inGrid) return line.replace(/[^\s|:]+/g, (w) => w.split('~').map((c) => (CHORDISH.test(c) ? move(c) : c)).join('~'));
+      const key = line.match(/^(\s*\{\s*key\s*:\s*)([A-G][#b]?m?)(\s*\}\s*)$/i);
+      if (key) return key[1] + move(key[2]) + key[3];
+      return line.replace(/\[([^\]]+)\]/g, (m, c: string) => (CHORDISH.test(c.trim()) ? `[${move(c.trim())}]` : m));
+    })
+    .join('\n');
+}

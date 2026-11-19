@@ -9,6 +9,7 @@ export interface SavedSong {
   artist: string;
   chordpro: string;
   sourceUrl: string;
+  edited?: boolean; // changed by hand, so a fresh copy from the source must not replace it
   savedAt: number;
   lengths?: Record<string, number>; // chord lengths set by hand: "section-line-token" -> quarters of a bar
 }
