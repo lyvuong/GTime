@@ -62,6 +62,21 @@ export function RhythmBar({ rhythm, demoChords, capo, keyHint }: { rhythm: Rhyth
           </optgroup>
         ))}
       </select>
+      {rhythm.canPick && (
+        <div role="group" aria-label="Strum or fingerpicked" className="flex rounded-lg border border-stage-border overflow-hidden text-xs font-semibold">
+          {([false, true] as const).map((p) => (
+            <button
+              key={String(p)}
+              onClick={() => rhythm.setPicked(p)}
+              aria-pressed={rhythm.picked === p}
+              title={p ? 'Fingerpicked: the thumb plays the bass and the fingers pluck the chord, with no strumming' : 'Strummed'}
+              className={`px-2 py-1 ${rhythm.picked === p ? 'bg-stage-accent/20 text-stage-accent' : 'text-stage-muted'}`}
+            >
+              {p ? 'Picked' : 'Strum'}
+            </button>
+          ))}
+        </div>
+      )}
       <button
         onClick={() => setGuideOpen(true)}
         className="p-1 rounded-full text-stage-muted hover:text-sky-300"

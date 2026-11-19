@@ -5,13 +5,14 @@ import { INSTRUMENTS, type Instrument } from './instruments';
 import type { FillStyle, FillWhere } from './fills';
 import type { SongFillWhere } from './songPhrase';
 import { patternsFor, type Pattern } from './patterns';
+import { hasPicked, pickedVersion } from './pickedPatterns';
 import { snapTempo } from './tempo';
 
 // The rhythm and tempo you have chosen apply to the whole song, intro included. Fills are chosen separately:
 // the intro's fill is a short flourish, the song's fill is longer and goes where the singer rests.
 // Everything is remembered on this device.
 
-const KEYS = { pattern: 'gtime_rhythm', fill: 'gtime_fill', where: 'gtime_fill_where', songFill: 'gtime_song_fill', songWhere: 'gtime_song_fill_where', drums: 'gtime_drums', instrument: 'gtime_instrument', drumsBack: 'gtime_drums_last', bass: 'gtime_bass', bassBack: 'gtime_bass_last' };
+const KEYS = { pattern: 'gtime_rhythm', fill: 'gtime_fill', where: 'gtime_fill_where', songFill: 'gtime_song_fill', songWhere: 'gtime_song_fill_where', drums: 'gtime_drums', instrument: 'gtime_instrument', drumsBack: 'gtime_drums_last', bass: 'gtime_bass', bassBack: 'gtime_bass_last', picked: 'gtime_picked' };
 const FILL_STYLES: FillStyle[] = ['none', 'auto', 'groove', 'bass-run', 'approach', 'hammer', 'lick'];
 
 function read(key: string): string | null {
@@ -31,7 +32,10 @@ function write(key: string, value: string) {
 
 export interface Rhythm {
   patterns: Pattern[]; // every pattern, those that fit the song's time signature first
-  pattern: Pattern;
+  pattern: Pattern; // as it is played: the strum, or its fingerpicked version
+  canPick: boolean; // the rhythm has a fingerpicked version
+  picked: boolean; // fingerpicked, no strumming (remembered for each rhythm)
+  setPicked: (picked: boolean) => void;
   bpm: number;
   setPattern: (id: string) => void; // also returns the tempo to the style's own
   setBpm: (bpm: number) => void;
@@ -84,12 +88,30 @@ export function useRhythm(time?: string): Rhythm {
     return saved && DRUM_LEVELS.includes(saved) ? saved : 'off';
   });
 
+  const [pickedMap, setPickedMap] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(read(KEYS.picked) ?? '{}') ?? {};
+    } catch {
+      return {};
+    }
+  });
+
   const patterns = useMemo(() => patternsFor(time), [time]);
-  const pattern = patterns.find((p) => p.id === patternId) ?? patterns[0];
+  const base = patterns.find((p) => p.id === patternId) ?? patterns[0];
+  const canPick = hasPicked(base);
+  const picked = canPick && pickedMap[base.id] === true;
+  const pattern = picked ? pickedVersion(base) : base;
 
   return {
     patterns,
     pattern,
+    canPick,
+    picked,
+    setPicked: (value) => {
+      const next = { ...pickedMap, [base.id]: value };
+      setPickedMap(next);
+      write(KEYS.picked, JSON.stringify(next));
+    },
     bpm: snapTempo(bpmOverride ?? pattern.bpm),
     setPattern: (id) => {
       setPatternId(id);

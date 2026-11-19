@@ -94,6 +94,7 @@ export function addBass(phrase: Phrase, pattern: Pattern, segments: BassSegment[
   const steps = phrase.stepsPerBar;
   const groove = GROOVES[pattern.id] ?? 'R...R...';
   const short = SHORT.has(pattern.id);
+  const support = pattern.picked ? 0.45 : 1; // fingerpicked, the guitar's thumb carries the bass, so this part only supports it
   const bass: BassEvent[] = [];
 
   const fillFrom = new Map<number, number>();
@@ -128,7 +129,7 @@ export function addBass(phrase: Phrase, pattern: Pattern, segments: BassSegment[
     hits.forEach((h, i) => {
       const end = i + 1 < hits.length ? hits[i + 1].step : until;
       const len = short ? Math.min(1, end - h.step) : end - h.step;
-      bass.push({ bar: seg.bar, step: h.step, midi: note(h.kind), steps: len, gain: h.kind === 'R' ? (h.step === seg.from ? 0.95 : 0.8) : 0.75 });
+      bass.push({ bar: seg.bar, step: h.step, midi: note(h.kind), steps: len, gain: (h.kind === 'R' ? (h.step === seg.from ? 0.95 : 0.8) : 0.75) * support });
     });
 
     // Walk to the next chord through the fill: step by step from this root toward the next one's, landing a half step off it

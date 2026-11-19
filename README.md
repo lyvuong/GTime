@@ -45,6 +45,7 @@ It is a companion to the Nhạc StageChord app and shares its ChordPro engine, t
   - **Bass:** electric, upright or synth. It plays the roots and fifths in the pattern of the rhythm, walks into the next chord at fills, and rings the last chord at the end.
   - **Sound:** guitar, strings, brass, synth or piano play the chords.
   - **Metronome click** on every beat, if you want one.
+- **Strum or fingerpicked.** Every strummed rhythm has a **Picked** version: no strumming, the thumb plays the bass (root, then fifth) and the fingers pluck the chord. The bass part then only supports the thumb. Your choice is remembered for each rhythm.
 - **19 rhythms**, from slow arpeggios to ballroom tango. See [Rhythms](#rhythms). The **?** next to the rhythm lets you listen to each one.
 
 ### Tune up

@@ -1,6 +1,6 @@
 // Picking patterns and rhythm styles that turn a chord into notes, plus a plain-text tab of the result.
 // The rhythms are simplified guitar versions of the usual accompaniment for each style.
-import { chordShape, OPEN_STRINGS, type Shape } from './chordShapes.ts';
+import { chordShape, OPEN_STRINGS, parseChord, type Shape } from './chordShapes.ts';
 import type { BassEvent } from './bass.ts';
 import type { DrumEvent, DrumKind } from './drums.ts';
 import { fillNotes, guessKey, isRhythmFill, type FillNote, type FillOptions } from './fills.ts';
@@ -10,7 +10,8 @@ import { pickVariant, type FillVariant } from './fillVariants.ts';
 //   B = lowest played string   A = next one up   M1 / M2 = middle strings   T = highest played string
 //   D = down-strum, all strings   C = down-strum on the upper strings (a "chick" without the bass)
 //   U = up-strum, top three strings
-export type Token = 'B' | 'A' | 'M1' | 'M2' | 'T' | 'D' | 'C' | 'U';
+// Fingerpicking adds: F = the chord's fifth in the bass, P = pinch (bass and top string together), Q = pluck (top three strings together)
+export type Token = 'B' | 'A' | 'M1' | 'M2' | 'T' | 'D' | 'C' | 'U' | 'F' | 'P' | 'Q';
 
 export interface Pattern {
   id: string;
@@ -21,6 +22,7 @@ export interface Pattern {
   bpm: number; // a comfortable starting tempo for the style
   desc: string; // what it sounds like, for the rhythm guide
   meter?: string; // shown when it isn't plain 4/4
+  picked?: boolean; // the fingerpicked version of a rhythm (see pickedPatterns.ts): the thumb carries the bass, the fingers pluck
 }
 
 const p = (id: string, name: string, kind: Pattern['kind'], beats: number, bpm: number, steps: (Token | null)[], desc: string, meter?: string): Pattern => ({ id, name, kind, beats, bpm, steps, desc, meter });
@@ -96,6 +98,9 @@ export function strokeGlyph(token: Token | null): string {
     case 'A': return 'b';
     case 'D': case 'C': return '↓';
     case 'U': return '↑';
+    case 'F': return 'b';
+    case 'P': return 'p';
+    case 'Q': return '·';
     case 'M1': return '3';
     case 'M2': return '2';
     case 'T': return '1';
@@ -132,6 +137,14 @@ export interface Phrase {
   drums?: DrumEvent[]; // the drum part, when there is one (see drums.ts)
   bass?: BassEvent[]; // the bass part, when there is one (see bass.ts)
   fills?: FillPlan[]; // rhythm fills, for the drums and the bass to answer
+}
+
+/** The lowest played string that sounds the chord's fifth (the thumb's second bass note), or the next string up. */
+function fifthString(chord: string, shape: Shape, played: number[]): number {
+  const c = parseChord(chord);
+  const fifth = c ? (c.root + 7) % 12 : -1;
+  const found = played.find((s) => (OPEN_STRINGS[s] + shape[s]) % 12 === fifth);
+  return found ?? played[Math.min(1, played.length - 1)];
 }
 
 function stringFor(token: Token, played: number[]): number {
@@ -199,6 +212,11 @@ export function buildPhrase(chords: string[], pattern: Pattern, repeat = 1, capo
       if (token === 'D') played.forEach((s, i) => events.push(note(step, i, s, step % 2 === 0 ? 0.32 : 0.26)));
       else if (token === 'C') played.slice(-Math.min(4, played.length - 1)).forEach((s, i) => events.push(note(step, i, s, 0.28)));
       else if (token === 'U') played.slice(-3).reverse().forEach((s, i) => events.push(note(step, i, s, 0.2)));
+      else if (token === 'Q') played.slice(-Math.min(3, played.length - 1)).forEach((s) => events.push(note(step, 0, s, 0.32))); // plucked together
+      else if (token === 'P') {
+        events.push(note(step, 0, played[0], 0.5));
+        events.push(note(step, 0, played[played.length - 1], 0.36));
+      } else if (token === 'F') events.push(note(step, 0, fifthString(sequence[bar], shape, played), 0.46));
       else events.push(note(step, 0, stringFor(token, played), token === 'B' ? 0.5 : token === 'A' ? 0.42 : 0.38));
     });
 
@@ -206,7 +224,8 @@ export function buildPhrase(chords: string[], pattern: Pattern, repeat = 1, capo
       for (const stab of variant.stabs ?? []) {
         const step = stepOf(stab.at);
         const strings = stab.kind === 'C' ? played.slice(-Math.min(4, played.length - 1)) : played;
-        strings.forEach((s, i) => events.push({ ...note(step, i, s, stab.g ?? 0.3), fill: true }));
+        // Fingerpicked, a stab is a slow roll up the strings (D) or a pluck (C), never a strum
+        strings.forEach((s, i) => events.push({ ...note(step, pattern.picked ? (stab.kind === 'C' ? 0 : i * 3) : i, s, stab.g ?? 0.3), fill: true }));
       }
       for (const { step, n } of variantNotes) {
         events.push({
