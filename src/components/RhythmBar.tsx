@@ -6,7 +6,7 @@ import { addDrums, DRUM_LEVELS } from '../lib/drums';
 import { INSTRUMENTS, type Instrument } from '../lib/instruments';
 import { buildPhrase, type Pattern } from '../lib/patterns';
 import { playPhrase } from '../lib/synth';
-import { snapTempo, stepTempo, TEMPOS } from '../lib/tempo';
+import { snapTempo, stepTempo } from '../lib/tempo';
 import type { Rhythm } from '../lib/useRhythm';
 import { RhythmGuide } from './RhythmGuide';
 
@@ -44,7 +44,7 @@ export function RhythmBar({ rhythm, demoChords, capo, keyHint }: { rhythm: Rhyth
   ] as const;
 
   return (
-    <div className="border-b border-stage-border bg-stage-card/60 px-3 py-1.5 flex flex-wrap items-center gap-x-2 gap-y-1" aria-label="Rhythm and speed">
+    <div className="bg-stage-card/95 px-3 pt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1" aria-label="Rhythm and speed">
       <select
         value={pattern.id}
         onChange={(e) => rhythm.setPattern(e.target.value)} // each style starts at its own tempo
@@ -90,7 +90,7 @@ export function RhythmBar({ rhythm, demoChords, capo, keyHint }: { rhythm: Rhyth
         title="A bass part under the guitar"
         className="px-2 py-1 rounded-lg bg-stage-bg border border-stage-border text-xs font-semibold focus:outline-none focus:border-stage-accent"
       >
-        <option value="off">No bass</option>
+        <option value="off">Bass: off</option>
         {BASS_VOICES.map((v) => (
           <option key={v.id} value={v.id}>
             Bass: {v.name.replace(' bass', '')}
@@ -105,30 +105,20 @@ export function RhythmBar({ rhythm, demoChords, capo, keyHint }: { rhythm: Rhyth
       >
         {DRUM_LEVELS.map((l) => (
           <option key={l} value={l}>
-            {l === 'off' ? 'No drums' : l === 'light' ? 'Drums: light' : 'Drums: full'}
+            {l === 'off' ? 'Drums: off' : l === 'light' ? 'Drums: light' : 'Drums: full'}
           </option>
         ))}
       </select>
-      <div className="flex-1 basis-40 flex items-center gap-1 text-[11px] text-stage-muted">
+      <div className="flex items-center gap-0.5 text-[11px] text-stage-muted">
         <button onClick={() => rhythm.setBpm(stepTempo(bpm, -1))} className="p-1 rounded-full hover:text-stage-text" aria-label="Slower">
           <Minus className="w-3.5 h-3.5" />
         </button>
-        {/* The slider moves through the metronome settings, not every number */}
-        <input
-          type="range"
-          min={0}
-          max={TEMPOS.length - 1}
-          step={1}
-          value={TEMPOS.indexOf(bpm)}
-          onChange={(e) => rhythm.setBpm(TEMPOS[Number(e.target.value)])}
-          className="flex-1 min-w-0 accent-amber-400"
-          aria-label="Tempo"
-          aria-valuetext={`${bpm} beats per minute`}
-        />
+        <span className="min-w-[3.6rem] text-center font-mono text-stage-text" aria-label="Tempo" title="Beats per minute">
+          {bpm} bpm
+        </span>
         <button onClick={() => rhythm.setBpm(stepTempo(bpm, 1))} className="p-1 rounded-full hover:text-stage-text" aria-label="Faster">
           <Plus className="w-3.5 h-3.5" />
         </button>
-        <span className="w-12 text-right font-mono">{bpm} bpm</span>
       </div>
 
       <RhythmGuide

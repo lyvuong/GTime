@@ -288,6 +288,31 @@ export default function App() {
         </div>
         {editing && <SongEditor title={viewing.title} text={viewing.chordpro} onSave={saveEdit} onClose={() => setEditing(false)} />}
         <RhythmBar rhythm={rhythm} demoChords={intros[0]?.chords ?? []} capo={shown.metadata.capo} keyHint={shown.metadata.key} />
+        {/* Play along: transport and settings, then the intro ideas */}
+        <div className="border-b-2 border-stage-border bg-stage-card/95">
+        <PlayAlongBar
+          key={`play-${viewing.sourceId}`}
+          intro={intro}
+          songId={String(viewing.sourceId)}
+          song={shown}
+          rhythm={rhythm}
+          capo={shown.metadata.capo}
+          keyHint={shown.metadata.key}
+          startLine={startLine}
+          startAtBar={startAtBar}
+          onClearStart={() => {
+            setStartLine(null);
+            setStartAtBar(null);
+          }}
+          follow={follow}
+          onFollowChange={setFollow}
+          onActive={setActive}
+          onLengthEdit={setLengthEdit}
+          onTiming={setTiming}
+          onPosition={setPosition}
+        />
+        <IntroCard key={`intro-${viewing.sourceId}`} options={intros} current={intro} onPick={setIntroId} capo={shown.metadata.capo} keyHint={shown.metadata.key} rhythm={rhythm} />
+        </div>
         {!gridOnly && (
         <div className="flex items-center gap-1 px-3 pt-2 text-xs" role="tablist" aria-label="Song view">
           {(
@@ -337,31 +362,6 @@ export default function App() {
             }}
           />
           )}
-        </div>
-        {/* The play-along section: the intro, then the song itself */}
-        <div className="border-t-2 border-stage-border bg-stage-card/95">
-        <IntroCard key={`intro-${viewing.sourceId}`} options={intros} current={intro} onPick={setIntroId} capo={shown.metadata.capo} keyHint={shown.metadata.key} rhythm={rhythm} />
-        <PlayAlongBar
-          key={`play-${viewing.sourceId}`}
-          intro={intro}
-          songId={String(viewing.sourceId)}
-          song={shown}
-          rhythm={rhythm}
-          capo={shown.metadata.capo}
-          keyHint={shown.metadata.key}
-          startLine={startLine}
-          startAtBar={startAtBar}
-          onClearStart={() => {
-            setStartLine(null);
-            setStartAtBar(null);
-          }}
-          follow={follow}
-          onFollowChange={setFollow}
-          onActive={setActive}
-          onLengthEdit={setLengthEdit}
-          onTiming={setTiming}
-          onPosition={setPosition}
-        />
         </div>
       </div>
     );

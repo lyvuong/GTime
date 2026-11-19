@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronUp, CircleHelp, Drum, Guitar, Music2, Ruler, Pause, Play, Square, X } from 'lucide-react';
+import { ChevronUp, CircleHelp, Music2, Ruler, Pause, Play, Square, X } from 'lucide-react';
 import type { ParsedSong } from '../lib/chordParser';
 import { FILLS, type FillStyle } from '../lib/fills';
 import { playAlong, type PlayAlongLive } from '../lib/playAlong';
@@ -248,7 +248,61 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
   const playing = state === 'playing';
 
   return (
-    <div className="border-t border-stage-border bg-stage-card/95 backdrop-blur" aria-label="Play along">
+    <div className="bg-stage-card/95" aria-label="Play along">
+      <div className="px-3 py-1.5 flex items-center gap-2">
+        <button
+          onClick={toggle}
+          className="px-3 py-1.5 rounded-lg bg-stage-accent text-slate-950 text-sm font-bold flex items-center gap-1.5"
+          aria-label={playing ? 'Pause' : state === 'paused' ? 'Resume' : 'Play along'}
+        >
+          {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+          {playing ? 'Pause' : state === 'paused' ? 'Resume' : 'Play along'}
+        </button>
+        {state !== 'stopped' && (
+          <button onClick={stopAll} className="p-2 rounded-lg border border-stage-border text-stage-muted" aria-label="Stop">
+            <Square className="w-4 h-4" />
+          </button>
+        )}
+        <div className="min-w-0 flex-1 font-mono text-sm font-bold truncate">
+          {playing && bar === null ? (
+            <span className="text-stage-muted font-semibold">Count-in…</span>
+          ) : playing && inIntro ? (
+            <span className="text-sky-300 font-semibold">Intro</span>
+          ) : now ? (
+            <>
+              <span className="text-stage-accent">{now}</span>
+              {next && <span className="text-stage-muted font-semibold"> → {next}</span>}
+            </>
+          ) : state === 'paused' ? (
+            <span className="text-stage-muted font-semibold text-xs">Paused</span>
+          ) : startLine ? (
+            <span className="text-sky-300 font-semibold text-xs">Starts at the marked line</span>
+          ) : (
+            <span className="text-stage-muted font-semibold text-xs">Tap a line to start there</span>
+          )}
+        </div>
+        {intro && (
+          <button
+            onClick={() => setWithIntro((w) => !w)}
+            aria-pressed={withIntro}
+            title={withIntro ? `The song starts with the intro (${intro.label}). Tap to turn off.` : 'Tap to play the chosen intro before the song.'}
+            className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 ${withIntro ? 'bg-sky-400/20 border-sky-400 text-sky-300' : 'border-stage-border text-stage-muted'}`}
+          >
+            <Music2 className="w-3.5 h-3.5" /> Intro {withIntro ? 'on' : 'off'}
+          </button>
+        )}
+        <button onClick={() => setHelpOpen(true)} className="p-1.5 rounded-lg text-stage-muted hover:text-sky-300" aria-label="How Play along works" title="How Play along works">
+          <CircleHelp className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="p-1.5 rounded-lg text-stage-muted hover:text-stage-text"
+          aria-label="Play-along settings"
+        >
+          <ChevronUp className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
       {open && (
         <div className="px-3 pt-2 pb-1 grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-stage-muted sm:grid-cols-4">
           <label className="flex flex-col gap-0.5">
@@ -374,76 +428,6 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
         </div>
       )}
 
-      <div className="px-3 py-1.5 flex items-center gap-2">
-        <button
-          onClick={toggle}
-          className="px-3 py-1.5 rounded-lg bg-stage-accent text-slate-950 text-sm font-bold flex items-center gap-1.5"
-          aria-label={playing ? 'Pause' : state === 'paused' ? 'Resume' : 'Play along'}
-        >
-          {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-          {playing ? 'Pause' : state === 'paused' ? 'Resume' : 'Play along'}
-        </button>
-        {state !== 'stopped' && (
-          <button onClick={stopAll} className="p-2 rounded-lg border border-stage-border text-stage-muted" aria-label="Stop">
-            <Square className="w-4 h-4" />
-          </button>
-        )}
-        <div className="min-w-0 flex-1 font-mono text-sm font-bold truncate">
-          {playing && bar === null ? (
-            <span className="text-stage-muted font-semibold">Count-in…</span>
-          ) : playing && inIntro ? (
-            <span className="text-sky-300 font-semibold">Intro</span>
-          ) : now ? (
-            <>
-              <span className="text-stage-accent">{now}</span>
-              {next && <span className="text-stage-muted font-semibold"> → {next}</span>}
-            </>
-          ) : state === 'paused' ? (
-            <span className="text-stage-muted font-semibold text-xs">Paused</span>
-          ) : startLine ? (
-            <span className="text-sky-300 font-semibold text-xs">Starts at the marked line</span>
-          ) : (
-            <span className="text-stage-muted font-semibold text-xs">Tap a line to start there</span>
-          )}
-        </div>
-        <button
-          onClick={rhythm.toggleDrums}
-          aria-pressed={drums !== 'off'}
-          title={drums === 'off' ? 'Tap to add drums (choose light or full in the rhythm bar).' : `Drums: ${drums}. Tap to turn off.`}
-          className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 ${drums !== 'off' ? 'bg-sky-400/20 border-sky-400 text-sky-300' : 'border-stage-border text-stage-muted'}`}
-        >
-          <Drum className="w-3.5 h-3.5" /> Drums {drums === 'off' ? 'off' : 'on'}
-        </button>
-        <button
-          onClick={rhythm.toggleBass}
-          aria-pressed={bassOn}
-          title={bassOn ? `Bass: ${bass}. Tap to turn off.` : 'Tap to add a bass line (choose the voice in the rhythm bar).'}
-          className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 ${bassOn ? 'bg-sky-400/20 border-sky-400 text-sky-300' : 'border-stage-border text-stage-muted'}`}
-        >
-          <Guitar className="w-3.5 h-3.5" /> Bass {bassOn ? 'on' : 'off'}
-        </button>
-        {intro && (
-          <button
-            onClick={() => setWithIntro((w) => !w)}
-            aria-pressed={withIntro}
-            title={withIntro ? `The song starts with the intro (${intro.label}). Tap to turn off.` : 'Tap to play the chosen intro before the song.'}
-            className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 ${withIntro ? 'bg-sky-400/20 border-sky-400 text-sky-300' : 'border-stage-border text-stage-muted'}`}
-          >
-            <Music2 className="w-3.5 h-3.5" /> Intro {withIntro ? 'on' : 'off'}
-          </button>
-        )}
-        <button onClick={() => setHelpOpen(true)} className="p-1.5 rounded-lg text-stage-muted hover:text-sky-300" aria-label="How Play along works" title="How Play along works">
-          <CircleHelp className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-          className="p-1.5 rounded-lg text-stage-muted hover:text-stage-text"
-          aria-label="Play-along settings"
-        >
-          <ChevronUp className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
-        </button>
-      </div>
       <PlayAlongHelp isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
