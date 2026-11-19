@@ -76,6 +76,7 @@ export function addDrums(phrase: Phrase, pattern: Pattern, level: DrumLevel, opt
   // Where the guitar fills start, so the drums can lead into the next bar with it
   const fillFrom = new Map<number, number>();
   for (const e of phrase.events) if (e.fill) fillFrom.set(e.bar, Math.min(fillFrom.get(e.bar) ?? Infinity, e.step));
+  const plans = new Map((phrase.fills ?? []).map((f) => [f.bar, f]));
 
   // Real drummers never hit twice the same: the strength and the sound vary a little from hit to hit
   const hit = (bar: number, step: number, kind: DrumKind, accent: boolean, scale = 1) => {
@@ -89,7 +90,8 @@ export function addDrums(phrase: Phrase, pattern: Pattern, level: DrumLevel, opt
       if (full) hit(bar, 0, 'C', false);
       continue;
     }
-    const until = fillFrom.get(bar) ?? steps; // the groove stops where a fill takes over
+    const plan = plans.get(bar);
+    const until = plan ? plan.from : fillFrom.get(bar) ?? steps; // the groove stops where a fill takes over
     const row = (chars: string | undefined, kind: DrumKind, scale = 1) => {
       if (!chars) return;
       for (let s = 0; s < Math.min(chars.length, steps, until); s++) {
@@ -114,7 +116,16 @@ export function addDrums(phrase: Phrase, pattern: Pattern, level: DrumLevel, opt
         }
       } else hit(bar, groove.roll, 'R', false, 0.8);
     }
-    if (full && until < steps) {
+    if (plan) {
+      // A rhythm fill brings its own drum part. A light part answers with rim clicks only, and never crashes.
+      plan.drums.forEach((h, i) => {
+        const n = (bar * 31 + i * 7 + h.kind.charCodeAt(0)) % 9;
+        if (!full && (h.kind === 'C' || h.kind === 'O')) return;
+        const kind: DrumKind = !full && (h.kind === 'S' || h.kind === 'T') ? 'R' : h.kind;
+        drums.push({ bar, step: h.step, kind, gain: BASE[kind] * h.g * (full ? 1 : 0.75) * (0.92 + 0.02 * n), variant: n % 3 });
+      });
+      if (full && plan.crash && bar + 1 < phrase.bars && bar + 1 !== opts.holdBar) hit(bar + 1, 0, 'C', false, 0.9);
+    } else if (full && until < steps) {
       // A roll across the fill, rising in volume, with a crash on the next bar's first beat
       const n = steps - until;
       for (let i = 0; i < n; i++) hit(bar, until + i, i % 2 === 0 || n < 3 ? 'S' : 'T', false, 0.6 + (0.5 * (i + 1)) / n);

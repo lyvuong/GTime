@@ -324,7 +324,7 @@ export function PlayAlongBar({ song, songId, intro, rhythm, capo = 0, keyHint, s
             <select
               value={songFillWhere}
               onChange={(e) => rhythm.setSongFillWhere(e.target.value as SongFillWhere)}
-              disabled={songFill === 'none'}
+              disabled={songFill === 'none' || songFill === 'auto'}
               className="px-2 py-1 rounded-lg bg-stage-bg border border-stage-border text-stage-text font-semibold disabled:opacity-50"
             >
               <option value="line">End of each line</option>

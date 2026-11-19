@@ -12,7 +12,7 @@ import { snapTempo } from './tempo';
 // Everything is remembered on this device.
 
 const KEYS = { pattern: 'gtime_rhythm', fill: 'gtime_fill', where: 'gtime_fill_where', songFill: 'gtime_song_fill', songWhere: 'gtime_song_fill_where', drums: 'gtime_drums', instrument: 'gtime_instrument', drumsBack: 'gtime_drums_last', bass: 'gtime_bass', bassBack: 'gtime_bass_last' };
-const FILL_STYLES: FillStyle[] = ['none', 'bass-run', 'approach', 'hammer', 'lick'];
+const FILL_STYLES: FillStyle[] = ['none', 'auto', 'groove', 'bass-run', 'approach', 'hammer', 'lick'];
 
 function read(key: string): string | null {
   try {
@@ -64,7 +64,7 @@ export function useRhythm(time?: string): Rhythm {
 
   const [songFill, setSongFillState] = useState<FillStyle>(() => {
     const saved = read(KEYS.songFill) as FillStyle | null;
-    return saved && FILL_STYLES.includes(saved) ? saved : 'bass-run';
+    return saved && FILL_STYLES.includes(saved) ? saved : 'auto';
   });
   const [songFillWhere, setSongFillWhereState] = useState<SongFillWhere>(() => {
     const saved = read(KEYS.songWhere);

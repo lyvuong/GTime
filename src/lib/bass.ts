@@ -98,6 +98,10 @@ export function addBass(phrase: Phrase, pattern: Pattern, segments: BassSegment[
 
   const fillFrom = new Map<number, number>();
   for (const e of phrase.events) if (e.fill) fillFrom.set(e.bar, Math.min(fillFrom.get(e.bar) ?? Infinity, e.step));
+  const plans = new Map((phrase.fills ?? []).map((f) => [f.bar, f]));
+  // The notes the guitar plays in a rhythm fill, which the bass can double an octave or two down
+  const melody = new Map<number, { step: number; midi: number }[]>();
+  for (const e of phrase.events) if (e.fillNote) melody.set(e.bar, [...(melody.get(e.bar) ?? []), { step: e.step, midi: e.midi }]);
 
   const ordered = [...segments].sort((a, b) => a.bar - b.bar || a.from - b.from);
   ordered.forEach((seg, index) => {
@@ -111,7 +115,8 @@ export function addBass(phrase: Phrase, pattern: Pattern, segments: BassSegment[
       return;
     }
 
-    const until = Math.min(seg.to, fillFrom.get(seg.bar) ?? steps); // the groove stops where a fill takes over
+    const plan = plans.get(seg.bar);
+    const until = Math.min(seg.to, plan ? plan.from : fillFrom.get(seg.bar) ?? steps); // the groove stops where a fill takes over
     const hits: { step: number; kind: string }[] = [];
     for (let s = seg.from; s < until; s++) {
       const kind = groove[s];
@@ -127,7 +132,13 @@ export function addBass(phrase: Phrase, pattern: Pattern, segments: BassSegment[
     });
 
     // Walk to the next chord through the fill: step by step from this root toward the next one's, landing a half step off it
-    if (until < seg.to) {
+    const doubled = plan?.bass === 'unison' ? (melody.get(seg.bar) ?? []).filter((m) => m.step >= until && m.step < seg.to) : [];
+    if (plan?.bass === 'unison' && doubled.length > 0) {
+      // The bass plays the guitar's notes with it, in its own register
+      for (const m of doubled) bass.push({ bar: seg.bar, step: m.step, midi: lowNote(((m.midi % 12) + 12) % 12), steps: 1, gain: 0.8 });
+    } else if (plan?.bass === 'rest') {
+      // The bass drops out until the next bar's downbeat, which makes it land harder
+    } else if (until < seg.to) {
       const next = ordered[index + 1];
       const nextPc = next ? bassPitchClass(next.chord) : null;
       const slots = seg.to - until;

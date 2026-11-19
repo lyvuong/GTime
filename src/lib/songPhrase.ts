@@ -17,10 +17,28 @@ export function buildSongPhrase(timing: SongTiming, pattern: Pattern, capo = 0, 
   let options: FillOptions | undefined;
   if (fill && fill.style !== 'none') {
     const bars = new Set<number>();
-    if (fill.where === 'every') timing.chords.forEach((_, i) => bars.add(i));
-    else if (fill.where === 'line') timing.lineEnds.forEach((b) => bars.add(b));
-    else timing.blocks.forEach((b) => bars.add(b.end - 1));
-    options = { ...fill, where: 'end', long: fill.long ?? true, bars };
+    const sizes = new Map<number, 'small' | 'big'>();
+    const last = timing.blocks[timing.blocks.length - 1];
+    if (fill.style === 'auto') {
+      // Small fills at the end of a line when the chord changes there, big ones at the end of a paragraph
+      // (with a drum roll and a crash), and big ones at every line end through the last paragraph
+      for (const b of timing.lineEnds) {
+        if (timing.chords[b + 1] === timing.chords[b]) continue;
+        bars.add(b);
+        sizes.set(b, last && b >= last.start ? 'big' : 'small');
+      }
+      for (const blk of timing.blocks) {
+        bars.add(blk.end - 1);
+        sizes.set(blk.end - 1, 'big');
+      }
+    } else {
+      const size = fill.where === 'end' ? 'big' : 'small';
+      if (fill.where === 'every') timing.chords.forEach((_, i) => bars.add(i));
+      else if (fill.where === 'line') timing.lineEnds.forEach((b) => bars.add(b));
+      else timing.blocks.forEach((b) => bars.add(b.end - 1));
+      for (const b of bars) sizes.set(b, size);
+    }
+    options = { ...fill, where: 'end', long: fill.long ?? true, bars, sizes };
   }
 
   const phrase = buildPhrase(timing.chords, pattern, 1, capo, options);
@@ -32,6 +50,7 @@ export function buildSongPhrase(timing: SongTiming, pattern: Pattern, capo = 0, 
   for (const [b, segs] of perBar) {
     if (segs.length < 2) continue;
     phrase.events = phrase.events.filter((e) => e.bar !== b);
+    if (phrase.fills) phrase.fills = phrase.fills.filter((f) => f.bar !== b);
     for (const seg of segs) {
       const lo = Math.round((seg.from / 4) * steps);
       const hi = Math.round((seg.to / 4) * steps);

@@ -2,7 +2,7 @@
 // the key is worked out from the chords, and each style picks its notes from that key.
 import { OPEN_STRINGS, parseChord, type Shape } from './chordShapes.ts';
 
-export type FillStyle = 'none' | 'bass-run' | 'approach' | 'hammer' | 'lick';
+export type FillStyle = 'none' | 'auto' | 'groove' | 'bass-run' | 'approach' | 'hammer' | 'lick';
 export type FillWhere = 'end' | 'every'; // only at the end of the loop, or at every chord change
 
 export interface FillOptions {
@@ -11,10 +11,21 @@ export interface FillOptions {
   keyHint?: string; // the key written on the sheet, if any
   long?: boolean; // song fills: more notes, filling half the bar instead of the last beat
   bars?: Set<number>; // for a whole song: exactly which bars get a fill (the song does not loop back to its start)
+  sizes?: Map<number, 'small' | 'big'>; // rhythm fills: how big each one is (a song fill is big, an intro fill small)
 }
 
 export const FILLS: { id: FillStyle; name: string; desc: string }[] = [
   { id: 'none', name: 'No fill', desc: 'Play the rhythm as it is, with no extra notes.' },
+  {
+    id: 'auto',
+    name: 'Auto',
+    desc: 'The band chooses. Small fills at the end of a line when the chord changes, bigger ones with a drum roll and a crash at the end of a paragraph, and busier ones through the last section. Every fill is written for the rhythm you picked.',
+  },
+  {
+    id: 'groove',
+    name: 'Rhythm fill',
+    desc: 'A fill made for the chosen rhythm: conga taps and runs for bolero and rumba, light rim clicks for bossa nova, a snare roll and stabs for tango. Each rhythm has several, so they do not repeat, and the drums and bass answer the guitar.',
+  },
   {
     id: 'bass-run',
     name: 'Bass run',
@@ -96,6 +107,9 @@ export interface FillNote {
   string: number; // 0 = low E ... 5 = high e
   fret: number;
 }
+
+/** Fills that are written per rhythm (see fillVariants.ts) rather than built from one idea. */
+export const isRhythmFill = (style: FillStyle) => style === 'groove' || style === 'auto';
 
 // A bass note goes where it is lowest on the neck; a high note goes on the thinnest string it fits
 function locateBass(midi: number): FillNote | null {

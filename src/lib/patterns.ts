@@ -2,8 +2,9 @@
 // The rhythms are simplified guitar versions of the usual accompaniment for each style.
 import { chordShape, OPEN_STRINGS, type Shape } from './chordShapes.ts';
 import type { BassEvent } from './bass.ts';
-import type { DrumEvent } from './drums.ts';
-import { fillNotes, guessKey, type FillOptions } from './fills.ts';
+import type { DrumEvent, DrumKind } from './drums.ts';
+import { fillNotes, guessKey, isRhythmFill, type FillNote, type FillOptions } from './fills.ts';
+import { pickVariant, type FillVariant } from './fillVariants.ts';
 
 // Picked patterns name a string by role; strums and rhythms use several strings.
 //   B = lowest played string   A = next one up   M1 / M2 = middle strings   T = highest played string
@@ -110,6 +111,16 @@ export interface NoteEvent {
   midi: number; // sounding pitch, with the capo
   gain: number;
   fill?: boolean; // part of a fill rather than the pattern
+  fillNote?: boolean; // one of the fill's melody notes (not a chord stroke), which the bass can double
+}
+
+/** What the drums and the bass do where the guitar has a rhythm fill (see fillVariants.ts). */
+export interface FillPlan {
+  bar: number;
+  from: number; // the step where the guitar's pattern, and the groove, give way
+  bass: 'walk' | 'unison' | 'rest';
+  crash: boolean;
+  drums: { step: number; kind: DrumKind; g: number }[]; // steps may fall between slots
 }
 
 export interface Phrase {
@@ -120,6 +131,7 @@ export interface Phrase {
   shapes: (Shape | null)[]; // the fingering used for each bar
   drums?: DrumEvent[]; // the drum part, when there is one (see drums.ts)
   bass?: BassEvent[]; // the bass part, when there is one (see bass.ts)
+  fills?: FillPlan[]; // rhythm fills, for the drums and the bass to answer
 }
 
 function stringFor(token: Token, played: number[]): number {
@@ -139,6 +151,8 @@ export function buildPhrase(chords: string[], pattern: Pattern, repeat = 1, capo
   const sequence = Array.from({ length: Math.max(1, repeat) }, () => chords).flat();
   const shapes = sequence.map((c) => chordShape(c));
   const events: NoteEvent[] = [];
+  const plans: FillPlan[] = [];
+  let lastVariant: string | null = null;
   const key = fill && fill.style !== 'none' ? guessKey(chords, fill.keyHint) : null;
   // A fill goes in the last beat; a long (song) fill gets the last half of the bar
   const slotsPerBeat = fill?.long ? Math.round(pattern.steps.length / 2) : Math.round(pattern.steps.length / pattern.beats);
@@ -154,20 +168,57 @@ export function buildPhrase(chords: string[], pattern: Pattern, repeat = 1, capo
     const song = Boolean(fill?.bars); // a whole song ends instead of looping back to its first chord
     const atEnd = fill?.bars ? fill.bars.has(bar) : fill?.where === 'every' || bar % chords.length === chords.length - 1;
     const nextIndex = (bar + 1) % sequence.length;
+    const wantFill = Boolean(fill && key && atEnd && !(song && bar + 1 >= sequence.length));
+    const steps = pattern.steps.length;
+    const stepOf = (beat: number) => Math.min(steps - 1, Math.round((beat / pattern.beats) * steps));
+
+    // A rhythm fill is written for the pattern: its notes, chord strokes and the drums' and bass's part
+    let variant: FillVariant | null = null;
+    let variantNotes: { step: number; n: FillNote }[] = [];
+    if (wantFill && fill && key && isRhythmFill(fill.style)) {
+      const size = fill.sizes?.get(bar) ?? (fill.long ? 'big' : 'small');
+      variant = pickVariant(pattern, size, sequence[bar], sequence[nextIndex] ?? null, bar, lastVariant);
+      lastVariant = variant.id;
+      const at = variant.at ?? [];
+      const notes = variant.material && at.length
+        ? fillNotes(variant.material, { chord: sequence[bar], next: sequence[nextIndex], shape, nextShape: shapes[nextIndex], key, slots: at.length, bar, long: variant.size === 'big' }).slice(-at.length)
+        : [];
+      variantNotes = notes.map((n, i) => ({ step: stepOf(at[at.length - notes.length + i]), n }));
+    }
+
     const fillRun =
-      fill && key && atEnd && !(song && bar + 1 >= sequence.length)
+      wantFill && !variant && fill && key
         ? fillNotes(fill.style, { chord: sequence[bar], next: sequence[nextIndex], shape, nextShape: shapes[nextIndex], key, slots: slotsPerBeat, bar, long: fill.long })
         : [];
-    const firstFillStep = pattern.steps.length - fillRun.length;
+    const firstFillStep = variant ? stepOf(variant.from) : steps - fillRun.length;
+    const replaced = variant !== null || fillRun.length > 0;
 
     pattern.steps.forEach((token, step) => {
-      if (step >= firstFillStep && fillRun.length > 0) return; // replaced by the fill
+      if (step >= firstFillStep && replaced) return; // replaced by the fill
       if (!token) return;
       if (token === 'D') played.forEach((s, i) => events.push(note(step, i, s, step % 2 === 0 ? 0.32 : 0.26)));
       else if (token === 'C') played.slice(-Math.min(4, played.length - 1)).forEach((s, i) => events.push(note(step, i, s, 0.28)));
       else if (token === 'U') played.slice(-3).reverse().forEach((s, i) => events.push(note(step, i, s, 0.2)));
       else events.push(note(step, 0, stringFor(token, played), token === 'B' ? 0.5 : token === 'A' ? 0.42 : 0.38));
     });
+
+    if (variant) {
+      for (const stab of variant.stabs ?? []) {
+        const step = stepOf(stab.at);
+        const strings = stab.kind === 'C' ? played.slice(-Math.min(4, played.length - 1)) : played;
+        strings.forEach((s, i) => events.push({ ...note(step, i, s, stab.g ?? 0.3), fill: true }));
+      }
+      for (const { step, n } of variantNotes) {
+        events.push({
+          bar, step, order: 0, string: n.string, fret: n.fret,
+          midi: OPEN_STRINGS[n.string] + n.fret + capo, gain: variant.material === 'lick' ? 0.42 : 0.5, fill: true, fillNote: true,
+        });
+      }
+      plans.push({
+        bar, from: firstFillStep, bass: variant.bass, crash: Boolean(variant.crash),
+        drums: variant.drums.map((h) => ({ step: (h.at / pattern.beats) * steps, kind: h.kind, g: h.g ?? 1 })),
+      });
+    }
 
     fillRun.forEach((n, i) => {
       events.push({
@@ -176,7 +227,7 @@ export function buildPhrase(chords: string[], pattern: Pattern, repeat = 1, capo
       });
     });
   });
-  return { events, stepsPerBar: pattern.steps.length, beats: pattern.beats, bars: sequence.length, shapes };
+  return { events, stepsPerBar: pattern.steps.length, beats: pattern.beats, bars: sequence.length, shapes, ...(plans.length ? { fills: plans } : {}) };
 }
 
 export interface TabBar {
