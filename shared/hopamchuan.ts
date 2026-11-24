@@ -123,6 +123,57 @@ export async function searchSongs(query: string): Promise<SearchResult[]> {
   return parseSearchResults(await fetchHtml(`${SOURCE_BASE}/search?q=${encodeURIComponent(q)}`));
 }
 
+export interface Artist {
+  id: string;
+  slug: string;
+  name: string;
+  songCount: string; // e.g. "365 bài hát", as the source words it
+}
+
+const ARTIST_HREF = /\/artist\/(\d+)\/([a-z0-9-]+)/i;
+
+export function parseArtistResults(html: string): Artist[] {
+  const out: Artist[] = [];
+  const seen = new Set<string>();
+  for (const item of parse(html).querySelectorAll('a.artist-item')) {
+    const m = item.getAttribute('href')?.match(ARTIST_HREF);
+    if (!m || seen.has(m[1])) continue;
+    seen.add(m[1]);
+    const songCount = clean(item.querySelector('.artist-songs')?.text ?? '');
+    const name = clean(item.text.replace(songCount, ''));
+    if (name) out.push({ id: m[1], slug: m[2].toLowerCase(), name, songCount });
+  }
+  return out;
+}
+
+export interface ArtistSongs {
+  name: string;
+  results: SearchResult[];
+  hasMore: boolean;
+}
+
+// An artist page lists their songs, most viewed first, ten to a page
+export function parseArtistPage(html: string): ArtistSongs {
+  const root = parse(html);
+  return {
+    name: clean(root.querySelector('#artist-info h2')?.text ?? ''),
+    results: parseSearchResults(html),
+    hasMore: !!root.querySelector('.pagination a[rel="next"]'),
+  };
+}
+
+export async function searchArtists(query: string): Promise<Artist[]> {
+  const q = query.trim().slice(0, 100);
+  if (q.length < 2) return [];
+  return parseArtistResults(await fetchHtml(`${SOURCE_BASE}/search?q=${encodeURIComponent(q)}&mode=artist`)).slice(0, 5);
+}
+
+export async function getArtistSongs(id: string, slug: string, offset = 0): Promise<ArtistSongs> {
+  if (!/^\d{1,9}$/.test(id) || !/^[a-z0-9-]{1,120}$/i.test(slug)) throw new Error('Invalid artist reference');
+  const off = Math.min(Math.max(Math.floor(offset) || 0, 0), 5000);
+  return parseArtistPage(await fetchHtml(`${SOURCE_BASE}/artist/${id}/${slug}${off ? `?offset=${off}` : ''}`));
+}
+
 export async function getSong(id: string, slug: string): Promise<SongData> {
   // Only ever fetch a song page on the known host; reject anything shaped differently
   if (!/^\d{1,9}$/.test(id) || !/^[a-z0-9-]{1,120}$/i.test(slug)) throw new Error('Invalid song reference');

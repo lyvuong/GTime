@@ -15,7 +15,7 @@ import { keyPrefersFlats, transposeChord } from './lib/chordTransposer';
 import { ThemeToggle } from './components/ThemeToggle';
 import { useTheme } from './lib/useTheme';
 import { db } from './lib/db';
-import { searchApi, songApi, type SearchResult } from './lib/api';
+import { artistApi, artistsApi, searchApi, songApi, type Artist, type SearchResult } from './lib/api';
 import { loadLengths, recordPlay, recordSearches } from './lib/libraryStore';
 import { sortLibrary, topSearched, type LibrarySort, type SongStats } from './lib/stats';
 import { checkForUpdate } from './utils/updateCheck';
@@ -45,6 +45,8 @@ export default function App() {
   const [newVersion, setNewVersion] = useState<string | null>(null);
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const [sort, setSort] = useState<LibrarySort>('recent');
+  const [artists, setArtists] = useState<Artist[]>([]);
+  const [artistView, setArtistView] = useState<{ artist: Pick<Artist, 'id' | 'slug' | 'name'>; songs: SearchResult[]; hasMore: boolean; loading: boolean } | null>(null);
   const countedRef = useRef<SearchResult[] | null>(null); // the result set already tallied as "searched"
 
   // Look for a newer deployment on open and whenever the app comes back to the foreground
@@ -87,12 +89,17 @@ export default function App() {
     const q = query.trim();
     if (q.length < 2) {
       setResults(null);
+      setArtists([]);
       setSearching(false);
       return;
     }
     const ctrl = new AbortController();
     setSearching(true);
     const timer = setTimeout(() => {
+      // Matching artists are a bonus; if this lookup fails the song results still show
+      artistsApi(q, ctrl.signal)
+        .then(setArtists)
+        .catch(() => {});
       searchApi(q, ctrl.signal)
         .then((r) => {
           setResults(r);
@@ -139,6 +146,21 @@ export default function App() {
       setError(e instanceof Error ? e.message : 'Could not load song');
     } finally {
       setOpening(null);
+    }
+  };
+
+  // Shows an artist's songs, most viewed first; "Show more" appends the next page
+  const openArtist = async (a: Pick<Artist, 'id' | 'slug' | 'name'>, more = false) => {
+    const base = more && artistView ? artistView.songs : [];
+    setArtistView({ artist: a, songs: base, hasMore: false, loading: true });
+    setError('');
+    try {
+      const page = await artistApi(a.id, a.slug, base.length);
+      const seen = new Set(base.map((s) => s.id));
+      setArtistView({ artist: a, songs: [...base, ...page.results.filter((s) => !seen.has(s.id))], hasMore: page.hasMore, loading: false });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load songs');
+      setArtistView(more ? { artist: a, songs: base, hasMore: true, loading: false } : null);
     }
   };
 
@@ -355,8 +377,11 @@ export default function App() {
             <input
               autoFocus
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Tìm bài hát… (song title or lyrics)"
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setArtistView(null);
+              }}
+              placeholder="Tìm bài hát hoặc nghệ sĩ… (song, lyrics or artist)"
               className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-stage-card border border-stage-border focus:outline-none focus:border-stage-accent"
             />
             {searching && <Loader2 className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-stage-muted" />}
@@ -403,8 +428,59 @@ export default function App() {
                 )}
               </>
             )}
-            {results?.length === 0 && !searching && <p className="text-stage-muted text-sm pt-6 text-center">No songs found.</p>}
-            {results?.map((r) => (
+            {artistView && (
+              <>
+                <div className="flex items-center gap-2 pt-1">
+                  <button onClick={() => setArtistView(null)} className="p-2 rounded-lg hover:bg-stage-cardHover" aria-label="Back to results">
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div>
+                    <h2 className="font-bold leading-tight">{artistView.artist.name}</h2>
+                    <p className="text-xs text-stage-muted">Most popular songs first</p>
+                  </div>
+                </div>
+                {artistView.songs.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => openSong(r.id, r.slug)}
+                    disabled={opening !== null}
+                    className="w-full text-left p-3 rounded-xl bg-stage-card hover:bg-stage-cardHover border border-stage-border disabled:opacity-60"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold">{r.title}</span>
+                      {opening === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : savedIds.has(r.id) && <BookmarkCheck className="w-4 h-4 text-stage-accent" />}
+                    </div>
+                    {r.artists.length > 0 && <div className="text-xs text-stage-muted">{r.artists.join(', ')}</div>}
+                  </button>
+                ))}
+                {artistView.loading && <Loader2 className="w-5 h-5 animate-spin text-stage-muted mx-auto my-4" />}
+                {artistView.hasMore && !artistView.loading && (
+                  <button onClick={() => openArtist(artistView.artist, true)} className="w-full py-2 rounded-xl border border-stage-border text-sm font-semibold text-stage-muted hover:bg-stage-cardHover">
+                    Show more songs
+                  </button>
+                )}
+                {!artistView.loading && artistView.songs.length === 0 && <p className="text-stage-muted text-sm pt-6 text-center">No songs found for this artist.</p>}
+              </>
+            )}
+            {!artistView && artists.length > 0 && results !== null && (
+              <section aria-label="Artists">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-stage-muted pb-1">Artists · tap for popular songs</h2>
+                <div className="flex flex-wrap gap-1.5 pb-1">
+                  {artists.map((a) => (
+                    <button
+                      key={a.id}
+                      onClick={() => openArtist(a)}
+                      className="px-3 py-1.5 rounded-full border border-stage-border bg-stage-card hover:bg-stage-cardHover text-sm"
+                    >
+                      <span className="font-semibold">{a.name}</span>
+                      {a.songCount && <span className="text-xs text-stage-muted"> · {a.songCount}</span>}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+            {!artistView && results?.length === 0 && !searching && <p className="text-stage-muted text-sm pt-6 text-center">No songs found.</p>}
+            {!artistView && results?.map((r) => (
               <button
                 key={r.id}
                 onClick={() => openResult(r)}

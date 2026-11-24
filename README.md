@@ -29,6 +29,7 @@ It is a companion to the Nhạc StageChord app and shares its ChordPro engine, t
 
 ### Find and read songs
 - **Vietnamese song search.** Type part of a title or lyric, with or without accents. Matching songs from [HopAmChuan](https://hopamchuan.com) appear as you type.
+- **Popular songs by artist.** When your search matches an artist, their name appears above the results. Tap it to see that artist's songs, most viewed first, and tap **Show more songs** for the next ten.
 - **Clean chord sheets.** A song is converted to ChordPro and drawn with each chord right above the word it falls on, plus the key, capo and intro.
 - **Real-time transposition.** Shift the key up or down by semitones. Sharps and flats follow the song's key (F major gets B♭, not A♯).
 - **Light and dark themes.** Dark by default, with a light mode and an automatic mode that follows your device.
@@ -63,7 +64,8 @@ It is a companion to the Nhạc StageChord app and shares its ChordPro engine, t
 ## How to use it
 
 ### 1. Find a song
-1. Open the **Search** tab and type part of a title or lyric. Accents are optional.
+1. Open the **Search** tab and type part of a title or lyric, or an artist's name. Accents are optional.
+   To browse an artist, tap their name under **Artists** to list their most popular songs.
 2. Tap a result. GTime fetches that one song and shows its chord sheet. It is saved to your library automatically.
 
 ### 2. Make it fit your voice
@@ -255,10 +257,41 @@ The tests use Node's built-in test runner and cover the song parser, chord timin
 
 GTime runs on Cloudflare Workers, with the built app served as static assets and the Worker handling `/api/*`.
 
+### Automatic deploys (GitHub Actions)
+
+Every push to `main` deploys the app. The workflow is [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). You can also run it by hand from the repo's **Actions** tab (**Run workflow**).
+
+The job runs on `ubuntu-latest` with Node 24 and does these steps in order:
+
+1. Check out the code and install dependencies with `npm ci`.
+2. Run `npm test`. If a test fails, nothing is deployed.
+3. Run `npm run build`, with the Google Drive settings passed in as build-time variables.
+4. Run `npx wrangler deploy` to publish to Cloudflare.
+
+Only one deploy runs at a time. If you push again while one is running, the older run is cancelled.
+
+#### Repository secrets
+
+Add these under **Settings → Secrets and variables → Actions → Repository secrets**:
+
+| Secret | Used for |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Lets Wrangler deploy. Create it in the Cloudflare dashboard from the **Edit Cloudflare Workers** template. |
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID, shown in the dashboard. |
+| `VITE_GOOGLE_CLIENT_ID` | Google OAuth Client ID, baked into the build. |
+| `VITE_GOOGLE_DRIVE_API_KEY` | Google API key, baked into the build. Restrict it in Google Cloud Console. |
+| `VITE_GOOGLE_DRIVE_FOLDER_URL` | Optional shared Drive folder URL, baked into the build. |
+
+The three `VITE_*` values are read when the app is built and end up in the shipped JavaScript, so they are not private. See [`.env.example`](.env.example) for what each one does. If a secret is not set, that feature simply falls back to its default (for example, the paste-in field for the Client ID). The Worker's own `GOOGLE_CLIENT_ID` secret (see [Google Drive backup setup](#google-drive-backup-setup)) lives in Cloudflare and is not touched by the workflow.
+
+### Deploying by hand
+
 ```bash
 npx wrangler login      # once
 npm run deploy
 ```
+
+### Version number
 
 The app version shown in About comes from the git commit count, so it goes up with every commit.
 
