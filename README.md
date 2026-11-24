@@ -294,7 +294,7 @@ npm run deploy
 
 ### Version number
 
-The app version shown in About comes from the git commit count, so it goes up with every commit.
+The app version is `<major>.<minor>.<commit count>`: `package.json` holds the first two numbers and git supplies the last, so it goes up with every commit with nothing to bump by hand. It is shown beside the logo and in About. The deploy workflow fetches the full git history (`fetch-depth: 0`); with a shallow checkout the count would always be 1.
 
 ---
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeft, BookmarkCheck, ExternalLink, Info, Library, Loader2, Mic, Minus, Pencil, PanelRightClose, PanelRightOpen, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react';
+import { ArrowLeft, BookmarkCheck, ChevronLeft, ChevronRight, ExternalLink, Info, Library, Loader2, Mic, Minus, Pencil, PanelRightClose, PanelRightOpen, Play, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react';
 import { AboutModal } from './components/AboutModal';
 import { LibraryBackup } from './components/LibraryBackup';
 import { PasteSong } from './components/PasteSong';
@@ -26,6 +26,7 @@ import { browserStore, loadShown, markShown } from './lib/shownToday';
 import { recordPlay, recordSearches } from './lib/libraryStore';
 import { sortLibrary, topSearched, type LibrarySort, type SongStats } from './lib/stats';
 import { checkForUpdate } from './utils/updateCheck';
+import { DISPLAY_VERSION } from './utils/version';
 
 interface Viewing {
   sourceId: string;
@@ -237,6 +238,22 @@ export default function App() {
   const [startAtBar, setStartAtBar] = useState<number | null>(null);
   const [timing, setTiming] = useState<SongTiming | null>(null);
   const [position, setPosition] = useState<number | null>(null);
+  // The floating Play along / Record panel on the right edge; remembered between visits
+  const [playOpen, setPlayOpenState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('gtime_play_panel') === 'shown';
+    } catch {
+      return false;
+    }
+  });
+  const setPlayOpen = (open: boolean) => {
+    setPlayOpenState(open);
+    try {
+      localStorage.setItem('gtime_play_panel', open ? 'shown' : 'hidden');
+    } catch {
+      /* storage unavailable */
+    }
+  };
   useEffect(() => {
     setActive(null);
     setStartLine(null);
@@ -356,32 +373,6 @@ export default function App() {
           )}
         </div>
         {editing && <SongEditor title={viewing.title} text={viewing.chordpro} onSave={saveEdit} onClose={() => setEditing(false)} />}
-        <RhythmBar rhythm={rhythm} demoChords={intros[0]?.chords ?? []} capo={shown.metadata.capo} keyHint={shown.metadata.key} />
-        {/* Play along: transport and settings, then the intro ideas */}
-        <div className="border-b-2 border-stage-border bg-stage-card/95">
-        <PlayAlongBar
-          key={`play-${viewing.sourceId}`}
-          intro={intro}
-          songId={String(viewing.sourceId)}
-          song={shown}
-          rhythm={rhythm}
-          capo={shown.metadata.capo}
-          keyHint={shown.metadata.key}
-          startLine={startLine}
-          startAtBar={startAtBar}
-          onClearStart={() => {
-            setStartLine(null);
-            setStartAtBar(null);
-          }}
-          follow={follow}
-          onFollowChange={setFollow}
-          onActive={setActive}
-          onLengthEdit={setLengthEdit}
-          onTiming={setTiming}
-          onPosition={setPosition}
-        />
-        <IntroCard key={`intro-${viewing.sourceId}`} options={intros} current={intro} onPick={setIntroId} capo={shown.metadata.capo} keyHint={shown.metadata.key} rhythm={rhythm} />
-        </div>
         {!gridOnly && (
         <div className="flex items-center gap-1 px-3 pt-2 text-xs" role="tablist" aria-label="Song view">
           {(
@@ -451,7 +442,53 @@ export default function App() {
             </div>
           </section>
         )}
-        <LooperBar key={`loop-${viewing.sourceId}`} />
+        {/* Play along and Record float on the right edge, so the song gets the full height. Hidden with CSS, not
+            unmounted, so playback and a recording carry on while it is tucked away. */}
+        <aside
+          aria-label="Play along and record"
+          className={`fixed z-30 right-0 top-14 bottom-0 w-[25rem] max-w-[88vw] flex flex-col border-l-2 border-stage-border bg-stage-card shadow-2xl transition-transform duration-200 ${playOpen ? "translate-x-0" : "translate-x-full"}`}
+        >
+          <button
+            onClick={() => setPlayOpen(!playOpen)}
+            aria-expanded={playOpen}
+            aria-label={playOpen ? "Hide play along and record" : "Show play along and record"}
+            title={playOpen ? "Hide play along and record" : "Show play along and record"}
+            className="absolute right-full top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 px-1.5 py-3 rounded-l-xl border-2 border-r-0 border-stage-border bg-stage-card text-stage-accent shadow-lg"
+          >
+            {playOpen ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            <Play className="w-4 h-4" />
+            <Mic className="w-4 h-4" />
+          </button>
+          <div className="flex-1 min-h-0 overflow-y-auto" inert={!playOpen}>
+            <RhythmBar rhythm={rhythm} demoChords={intros[0]?.chords ?? []} capo={shown.metadata.capo} keyHint={shown.metadata.key} />
+            {/* Play along: transport and settings, then the intro ideas */}
+            <div className="border-b-2 border-stage-border bg-stage-card/95">
+            <PlayAlongBar
+              key={`play-${viewing.sourceId}`}
+              intro={intro}
+              songId={String(viewing.sourceId)}
+              song={shown}
+              rhythm={rhythm}
+              capo={shown.metadata.capo}
+              keyHint={shown.metadata.key}
+              startLine={startLine}
+              startAtBar={startAtBar}
+              onClearStart={() => {
+                setStartLine(null);
+                setStartAtBar(null);
+              }}
+              follow={follow}
+              onFollowChange={setFollow}
+              onActive={setActive}
+              onLengthEdit={setLengthEdit}
+              onTiming={setTiming}
+              onPosition={setPosition}
+            />
+            <IntroCard key={`intro-${viewing.sourceId}`} options={intros} current={intro} onPick={setIntroId} capo={shown.metadata.capo} keyHint={shown.metadata.key} rhythm={rhythm} />
+            </div>
+            <LooperBar key={`loop-${viewing.sourceId}`} />
+          </div>
+        </aside>
       </div>
     );
   }
@@ -459,9 +496,14 @@ export default function App() {
   return (
     <div className="h-dvh flex flex-col bg-stage-bg text-stage-text">
       <header className="px-4 pt-4 pb-2 flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold tracking-tight">
-          G<span className="text-stage-accent">Time</span>
-        </h1>
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-2xl font-extrabold tracking-tight">
+            G<span className="text-stage-accent">Time</span>
+          </h1>
+          <span className="font-mono text-[11px] text-stage-muted" title="App version (git commit count) and build">
+            {DISPLAY_VERSION}
+          </span>
+        </div>
         <ThemeToggle mode={theme.mode} onNext={theme.next} />
         <button
           onClick={() => setNavOpen(!navOpen)}
