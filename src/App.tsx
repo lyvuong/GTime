@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeft, BookmarkCheck, ChevronLeft, ChevronRight, ExternalLink, Info, Library, Loader2, Mic, Minus, Pencil, PanelRightClose, PanelRightOpen, Play, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react';
+import { ArrowLeft, BookmarkCheck, ChevronLeft, ChevronRight, ExternalLink, Info, Library, Loader2, Mic, Minus, Pencil, Play, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react';
 import { AboutModal } from './components/AboutModal';
 import { LibraryBackup } from './components/LibraryBackup';
 import { PasteSong } from './components/PasteSong';
@@ -50,22 +50,6 @@ export default function App() {
   const [viewing, setViewing] = useState<Viewing | null>(null);
   const [semitones, setSemitones] = useState(0);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
-  // The section menu sits on the right and can be hidden to give the page the full width
-  const [navOpen, setNavOpenState] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("gtime_nav") !== "hidden";
-    } catch {
-      return true;
-    }
-  });
-  const setNavOpen = (open: boolean) => {
-    setNavOpenState(open);
-    try {
-      localStorage.setItem("gtime_nav", open ? "shown" : "hidden");
-    } catch {
-      /* storage unavailable */
-    }
-  };
   const [newVersion, setNewVersion] = useState<string | null>(null);
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const [sort, setSort] = useState<LibrarySort>('recent');
@@ -505,225 +489,211 @@ export default function App() {
           </span>
         </div>
         <ThemeToggle mode={theme.mode} onNext={theme.next} />
-        <button
-          onClick={() => setNavOpen(!navOpen)}
-          className="p-2 rounded-lg text-stage-muted hover:text-stage-text hover:bg-stage-cardHover"
-          aria-label={navOpen ? "Hide menu" : "Show menu"}
-          aria-expanded={navOpen}
-          title={navOpen ? "Hide menu" : "Show menu"}
-        >
-          {navOpen ? <PanelRightClose className="w-5 h-5" /> : <PanelRightOpen className="w-5 h-5" />}
-        </button>
         <button onClick={() => setIsAboutOpen(true)} className="p-2 rounded-lg text-stage-muted hover:text-stage-text hover:bg-stage-cardHover" aria-label="About GTime" title="About">
           <Info className="w-5 h-5" />
         </button>
       </header>
 
-      <div className="flex-1 min-h-0 flex">
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-        {tab === 'search' && (
-          <div className="px-4 pb-2">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stage-muted" />
-              <input
-                autoFocus
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setArtistView(null);
-                }}
-                placeholder="Tìm bài hát hoặc nghệ sĩ… (song, lyrics or artist)"
-                className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-stage-card border border-stage-border focus:outline-none focus:border-stage-accent"
-              />
-              {searching && <Loader2 className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-stage-muted" />}
-            </div>
+      <nav className="mx-4 mb-3 grid grid-cols-3 rounded-xl border border-stage-border overflow-hidden text-sm font-semibold" aria-label="Sections">
+        {(
+          [
+            ['search', Search, 'Search'],
+            ['library', Library, `Library${library?.length ? ` (${library.length})` : ''}`],
+            ['tuner', Mic, 'Tuner'],
+          ] as const
+        ).map(([id, Icon, label]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            aria-current={tab === id ? 'page' : undefined}
+            className={`py-2 flex items-center justify-center gap-1.5 ${tab === id ? 'bg-stage-accent/20 text-stage-accent' : 'text-stage-muted'}`}
+          >
+            <Icon className="w-4 h-4" /> {label}
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'search' && (
+        <div className="px-4 pb-2">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stage-muted" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setArtistView(null);
+              }}
+              placeholder="Tìm bài hát hoặc nghệ sĩ… (song, lyrics or artist)"
+              className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-stage-card border border-stage-border focus:outline-none focus:border-stage-accent"
+            />
+            {searching && <Loader2 className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-stage-muted" />}
           </div>
-        )}
-
-        {error && <p className="mx-4 mb-2 text-sm text-red-400">{error}</p>}
-
-        <main className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 space-y-2">
-          {tab === 'search' && (
-            <>
-              {results === null && !searching && (
-                <>
-                  <p className="text-stage-muted text-sm pt-6 pb-2 text-center">Type part of a song name to find chords.</p>
-                  {frequent.length > 0 && (
-                    <section aria-label="Frequently searched">
-                      <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-stage-muted pb-1">
-                        <TrendingUp className="w-3.5 h-3.5" /> Frequently searched
-                      </h2>
-                      <div className="space-y-2">
-                        {frequent.map((s: SongStats) => (
-                          <button
-                            key={s.sourceId}
-                            onClick={() => openSong(s.sourceId, s.slug)}
-                            disabled={opening !== null}
-                            className="w-full text-left p-3 rounded-xl bg-stage-card hover:bg-stage-cardHover border border-stage-border disabled:opacity-60"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-semibold">{s.title}</span>
-                              {opening === s.sourceId ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <span className="text-xs text-stage-muted whitespace-nowrap">
-                                  searched {s.searchCount}×{s.playCount > 0 ? ` · played ${s.playCount}×` : ''}
-                                </span>
-                              )}
-                            </div>
-                            {s.artist && <div className="text-xs text-stage-muted">{s.artist}</div>}
-                          </button>
-                        ))}
-                      </div>
-                    </section>
-                  )}
-                </>
-              )}
-              {artistView && (
-                <>
-                  <div className="flex items-center gap-2 pt-1">
-                    <button onClick={() => setArtistView(null)} className="p-2 rounded-lg hover:bg-stage-cardHover" aria-label="Back to results">
-                      <ArrowLeft className="w-5 h-5" />
-                    </button>
-                    <div>
-                      <h2 className="font-bold leading-tight">{artistView.artist.name}</h2>
-                      <p className="text-xs text-stage-muted">Most popular songs first</p>
-                    </div>
-                  </div>
-                  {artistView.songs.map((r) => (
-                    <button
-                      key={r.id}
-                      onClick={() => openSong(r.id, r.slug)}
-                      disabled={opening !== null}
-                      className="w-full text-left p-3 rounded-xl bg-stage-card hover:bg-stage-cardHover border border-stage-border disabled:opacity-60"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">{r.title}</span>
-                        {opening === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : savedIds.has(r.id) && <BookmarkCheck className="w-4 h-4 text-stage-accent" />}
-                      </div>
-                      {r.artists.length > 0 && <div className="text-xs text-stage-muted">{r.artists.join(', ')}</div>}
-                    </button>
-                  ))}
-                  {artistView.loading && <Loader2 className="w-5 h-5 animate-spin text-stage-muted mx-auto my-4" />}
-                  {artistView.hasMore && !artistView.loading && (
-                    <button onClick={() => openArtist(artistView.artist, true)} className="w-full py-2 rounded-xl border border-stage-border text-sm font-semibold text-stage-muted hover:bg-stage-cardHover">
-                      Show more songs
-                    </button>
-                  )}
-                  {!artistView.loading && artistView.songs.length === 0 && <p className="text-stage-muted text-sm pt-6 text-center">No songs found for this artist.</p>}
-                </>
-              )}
-              {!artistView && artists.length > 0 && results !== null && (
-                <section aria-label="Artists">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-stage-muted pb-1">Artists · tap for popular songs</h2>
-                  <div className="flex flex-wrap gap-1.5 pb-1">
-                    {artists.map((a) => (
-                      <button
-                        key={a.id}
-                        onClick={() => openArtist(a)}
-                        className="px-3 py-1.5 rounded-full border border-stage-border bg-stage-card hover:bg-stage-cardHover text-sm"
-                      >
-                        <span className="font-semibold">{a.name}</span>
-                        {a.songCount && <span className="text-xs text-stage-muted"> · {a.songCount}</span>}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              )}
-              {!artistView && results?.length === 0 && !searching && <p className="text-stage-muted text-sm pt-6 text-center">No songs found.</p>}
-              {!artistView && results?.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => openResult(r)}
-                  disabled={opening !== null}
-                  className="w-full text-left p-3 rounded-xl bg-stage-card hover:bg-stage-cardHover border border-stage-border disabled:opacity-60"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold">{r.title}</span>
-                    {opening === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : savedIds.has(r.id) && <BookmarkCheck className="w-4 h-4 text-stage-accent" />}
-                  </div>
-                  {r.artists.length > 0 && <div className="text-xs text-stage-muted">{r.artists.join(', ')}</div>}
-                  {r.preview && <div className="text-xs text-stage-muted/80 mt-1 line-clamp-1">{r.preview}</div>}
-                </button>
-              ))}
-            </>
-          )}
-
-          {tab === 'tuner' && <Tuner />}
-
-          {tab === 'library' && (
-            <>
-              {library?.length === 0 && <p className="text-stage-muted text-sm pt-6 text-center">No songs yet. Any song you open is saved here automatically.</p>}
-              {!!library?.length && (
-                <div className="flex items-center gap-1.5 pb-1 text-xs">
-                  {(
-                    [
-                      ['recent', 'Recent'],
-                      ['plays', 'Most played'],
-                      ['az', 'A–Z'],
-                    ] as const
-                  ).map(([id, label]) => (
-                    <button
-                      key={id}
-                      onClick={() => setSort(id)}
-                      aria-pressed={sort === id}
-                      className={`px-3 py-1 rounded-full border font-semibold ${sort === id ? 'bg-stage-accent/20 border-stage-accent text-stage-accent' : 'border-stage-border text-stage-muted'}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                  <div className="flex-1" />
-                  {allStats && allStats.length > 0 && (
-                    <button onClick={resetCounts} className="px-2 py-1 text-stage-muted hover:text-red-400">
-                      Reset counts
-                    </button>
-                  )}
-                </div>
-              )}
-              {sortedLibrary.map((s) => (
-                <div key={s.id} className="flex items-center gap-2 p-3 rounded-xl bg-stage-card border border-stage-border">
-                  <button
-                    onClick={() => play({ sourceId: s.sourceId, slug: s.slug, title: s.title, artist: s.artist, chordpro: s.chordpro, sourceUrl: s.sourceUrl })}
-                    className="flex-1 text-left"
-                  >
-                    <div className="font-semibold">{s.title}</div>
-                    {s.artist && <div className="text-xs text-stage-muted">{s.artist}</div>}
-                  </button>
-                  {(statsById.get(s.sourceId)?.playCount ?? 0) > 0 && (
-                    <span className="text-xs text-stage-muted whitespace-nowrap">played {statsById.get(s.sourceId)!.playCount}×</span>
-                  )}
-                  <button onClick={() => removeSaved(s.id!)} className="p-2 text-stage-muted hover:text-red-400" aria-label="Remove">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-              <PasteSong onAdd={(song) => play(song)} />
-              <LibraryBackup />
-            </>
-          )}
-        </main>
         </div>
-        {navOpen && (
-          <nav className="w-36 shrink-0 mr-4 mb-3 flex flex-col self-start rounded-xl border border-stage-border overflow-hidden text-sm font-semibold" aria-label="Sections">
-            {(
-              [
-                ['search', Search, 'Search'],
-                ['library', Library, `Library${library?.length ? ` (${library.length})` : ''}`],
-                ['tuner', Mic, 'Tuner'],
-              ] as const
-            ).map(([id, Icon, label]) => (
+      )}
+
+      {error && <p className="mx-4 mb-2 text-sm text-red-400">{error}</p>}
+
+      <main className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 space-y-2">
+        {tab === 'search' && (
+          <>
+            {results === null && !searching && (
+              <>
+                <p className="text-stage-muted text-sm pt-6 pb-2 text-center">Type part of a song name to find chords.</p>
+                {frequent.length > 0 && (
+                  <section aria-label="Frequently searched">
+                    <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-stage-muted pb-1">
+                      <TrendingUp className="w-3.5 h-3.5" /> Frequently searched
+                    </h2>
+                    <div className="space-y-2">
+                      {frequent.map((s: SongStats) => (
+                        <button
+                          key={s.sourceId}
+                          onClick={() => openSong(s.sourceId, s.slug)}
+                          disabled={opening !== null}
+                          className="w-full text-left p-3 rounded-xl bg-stage-card hover:bg-stage-cardHover border border-stage-border disabled:opacity-60"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold">{s.title}</span>
+                            {opening === s.sourceId ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <span className="text-xs text-stage-muted whitespace-nowrap">
+                                searched {s.searchCount}×{s.playCount > 0 ? ` · played ${s.playCount}×` : ''}
+                              </span>
+                            )}
+                          </div>
+                          {s.artist && <div className="text-xs text-stage-muted">{s.artist}</div>}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </>
+            )}
+            {artistView && (
+              <>
+                <div className="flex items-center gap-2 pt-1">
+                  <button onClick={() => setArtistView(null)} className="p-2 rounded-lg hover:bg-stage-cardHover" aria-label="Back to results">
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div>
+                    <h2 className="font-bold leading-tight">{artistView.artist.name}</h2>
+                    <p className="text-xs text-stage-muted">Most popular songs first</p>
+                  </div>
+                </div>
+                {artistView.songs.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => openSong(r.id, r.slug)}
+                    disabled={opening !== null}
+                    className="w-full text-left p-3 rounded-xl bg-stage-card hover:bg-stage-cardHover border border-stage-border disabled:opacity-60"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold">{r.title}</span>
+                      {opening === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : savedIds.has(r.id) && <BookmarkCheck className="w-4 h-4 text-stage-accent" />}
+                    </div>
+                    {r.artists.length > 0 && <div className="text-xs text-stage-muted">{r.artists.join(', ')}</div>}
+                  </button>
+                ))}
+                {artistView.loading && <Loader2 className="w-5 h-5 animate-spin text-stage-muted mx-auto my-4" />}
+                {artistView.hasMore && !artistView.loading && (
+                  <button onClick={() => openArtist(artistView.artist, true)} className="w-full py-2 rounded-xl border border-stage-border text-sm font-semibold text-stage-muted hover:bg-stage-cardHover">
+                    Show more songs
+                  </button>
+                )}
+                {!artistView.loading && artistView.songs.length === 0 && <p className="text-stage-muted text-sm pt-6 text-center">No songs found for this artist.</p>}
+              </>
+            )}
+            {!artistView && artists.length > 0 && results !== null && (
+              <section aria-label="Artists">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-stage-muted pb-1">Artists · tap for popular songs</h2>
+                <div className="flex flex-wrap gap-1.5 pb-1">
+                  {artists.map((a) => (
+                    <button
+                      key={a.id}
+                      onClick={() => openArtist(a)}
+                      className="px-3 py-1.5 rounded-full border border-stage-border bg-stage-card hover:bg-stage-cardHover text-sm"
+                    >
+                      <span className="font-semibold">{a.name}</span>
+                      {a.songCount && <span className="text-xs text-stage-muted"> · {a.songCount}</span>}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+            {!artistView && results?.length === 0 && !searching && <p className="text-stage-muted text-sm pt-6 text-center">No songs found.</p>}
+            {!artistView && results?.map((r) => (
               <button
-                key={id}
-                onClick={() => setTab(id)}
-                aria-current={tab === id ? 'page' : undefined}
-                className={`py-2.5 px-3 flex items-center gap-2 ${tab === id ? "bg-stage-accent/20 text-stage-accent" : "text-stage-muted hover:bg-stage-cardHover"}`}
+                key={r.id}
+                onClick={() => openResult(r)}
+                disabled={opening !== null}
+                className="w-full text-left p-3 rounded-xl bg-stage-card hover:bg-stage-cardHover border border-stage-border disabled:opacity-60"
               >
-                <Icon className="w-4 h-4 shrink-0" /> <span className="truncate">{label}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold">{r.title}</span>
+                  {opening === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : savedIds.has(r.id) && <BookmarkCheck className="w-4 h-4 text-stage-accent" />}
+                </div>
+                {r.artists.length > 0 && <div className="text-xs text-stage-muted">{r.artists.join(', ')}</div>}
+                {r.preview && <div className="text-xs text-stage-muted/80 mt-1 line-clamp-1">{r.preview}</div>}
               </button>
             ))}
-          </nav>
+          </>
         )}
-      </div>
+
+        {tab === 'tuner' && <Tuner />}
+
+        {tab === 'library' && (
+          <>
+            {library?.length === 0 && <p className="text-stage-muted text-sm pt-6 text-center">No songs yet. Any song you open is saved here automatically.</p>}
+            {!!library?.length && (
+              <div className="flex items-center gap-1.5 pb-1 text-xs">
+                {(
+                  [
+                    ['recent', 'Recent'],
+                    ['plays', 'Most played'],
+                    ['az', 'A–Z'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => setSort(id)}
+                    aria-pressed={sort === id}
+                    className={`px-3 py-1 rounded-full border font-semibold ${sort === id ? 'bg-stage-accent/20 border-stage-accent text-stage-accent' : 'border-stage-border text-stage-muted'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <div className="flex-1" />
+                {allStats && allStats.length > 0 && (
+                  <button onClick={resetCounts} className="px-2 py-1 text-stage-muted hover:text-red-400">
+                    Reset counts
+                  </button>
+                )}
+              </div>
+            )}
+            {sortedLibrary.map((s) => (
+              <div key={s.id} className="flex items-center gap-2 p-3 rounded-xl bg-stage-card border border-stage-border">
+                <button
+                  onClick={() => play({ sourceId: s.sourceId, slug: s.slug, title: s.title, artist: s.artist, chordpro: s.chordpro, sourceUrl: s.sourceUrl })}
+                  className="flex-1 text-left"
+                >
+                  <div className="font-semibold">{s.title}</div>
+                  {s.artist && <div className="text-xs text-stage-muted">{s.artist}</div>}
+                </button>
+                {(statsById.get(s.sourceId)?.playCount ?? 0) > 0 && (
+                  <span className="text-xs text-stage-muted whitespace-nowrap">played {statsById.get(s.sourceId)!.playCount}×</span>
+                )}
+                <button onClick={() => removeSaved(s.id!)} className="p-2 text-stage-muted hover:text-red-400" aria-label="Remove">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+            <PasteSong onAdd={(song) => play(song)} />
+            <LibraryBackup />
+          </>
+        )}
+      </main>
 
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
 
