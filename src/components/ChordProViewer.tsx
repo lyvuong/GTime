@@ -146,6 +146,14 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
         <div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-stage-text flex items-center gap-2">
             {song.metadata.title}
+            {song.metadata.key && (
+              <span
+                className="px-2.5 py-0.5 rounded-md bg-stage-cardHover border border-stage-border font-mono text-xs sm:text-sm font-bold shadow-sm"
+                style={{ color: chordColor || 'rgb(var(--color-stage-accent))' }}
+              >
+                Key: {song.metadata.key}
+              </span>
+            )}
           </h1>
           {song.metadata.artist && (
             <p className="text-xs sm:text-sm font-medium text-stage-muted mt-0.5">
@@ -156,14 +164,6 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
 
         {/* Badges: Key, Capo, Tempo, Time */}
         <div className="flex items-center gap-2 flex-wrap">
-          {song.metadata.key && (
-            <span 
-              className="px-2.5 py-0.5 rounded-md bg-stage-cardHover border border-stage-border font-mono text-xs font-bold shadow-sm"
-              style={{ color: chordColor || 'rgb(var(--color-stage-accent))' }}
-            >
-              Key: {song.metadata.key}
-            </span>
-          )}
           {((song.metadata.capo !== undefined ? song.metadata.capo : (capo || 0)) > 0) && (
             <span className="px-2.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/35 text-amber-600 dark:text-amber-300 font-mono text-xs font-bold shadow-xs">
               🎸 Capo {song.metadata.capo !== undefined ? song.metadata.capo : capo}

@@ -308,7 +308,7 @@ export default function App() {
           <ChordProViewer
             song={shown}
             zoomLevel={1}
-            columnsPreference={1}
+            columnsPreference="auto"
           />
           )}
         </div>
