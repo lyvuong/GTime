@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeft, BookmarkCheck, ChevronLeft, ChevronRight, ExternalLink, Info, Library, Loader2, Mic, Minus, Pencil, Play, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react';
+import { ArrowLeft, BookmarkCheck, ChevronLeft, ChevronRight, Info, Library, Loader2, Mic, Minus, Pencil, Play, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react';
 import { AboutModal } from './components/AboutModal';
 import { LibraryBackup } from './components/LibraryBackup';
 import { PasteSong } from './components/PasteSong';
@@ -27,6 +27,7 @@ import { recordPlay, recordSearches } from './lib/libraryStore';
 import { sortLibrary, topSearched, type LibrarySort, type SongStats } from './lib/stats';
 import { checkForUpdate } from './utils/updateCheck';
 import { DISPLAY_VERSION } from './utils/version';
+import { stripSourceLine } from './lib/sourceLine';
 
 interface Viewing {
   sourceId: string;
@@ -127,7 +128,8 @@ export default function App() {
   }, [query]);
 
   // Playing a song counts the play and keeps the song in the library
-  const play = (song: Viewing) => {
+  const play = (opened: Viewing) => {
+    const song = { ...opened, chordpro: stripSourceLine(opened.chordpro) }; // the Source line is not shown or saved
     setSemitones(0);
     setViewing(song);
     markShown(browserStore(), [song.sourceId]);
@@ -289,12 +291,11 @@ export default function App() {
     }
   };
   if (viewing && shown) {
-    const saved = savedIds.has(viewing.sourceId);
     const gridOnly = shown.sections.length > 0 && shown.sections.every((s) => s.grid); // a song written as grids has no lyrics to show
     const mode = gridOnly ? 'grid' : view;
     return (
       <div className="h-dvh flex flex-col bg-stage-bg text-stage-text">
-        <div className="flex items-center gap-2 p-2 border-b border-stage-border bg-stage-card">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 p-2 border-b border-stage-border bg-stage-card">
           <button onClick={() => setViewing(null)} className="p-2 rounded-lg hover:bg-stage-cardHover" aria-label="Back">
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -336,47 +337,32 @@ export default function App() {
             </button>
           )}
           <div className="flex-1" />
-          <button onClick={() => setEditing(true)} className="px-2 py-1.5 rounded-lg hover:bg-stage-cardHover text-xs font-semibold flex items-center gap-1">
+          <button onClick={() => setEditing(true)} className="px-2 py-1.5 rounded-lg hover:bg-stage-cardHover text-xs font-semibold hidden sm:flex items-center gap-1">
             <Pencil className="w-3.5 h-3.5" /> Edit
           </button>
+          {!gridOnly && (
+            <div className="flex items-center gap-1 text-xs" role="tablist" aria-label="Song view">
+              {(
+                [
+                  ['lyrics', 'Lyrics'],
+                  ['grid', 'Grid chart'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  role="tab"
+                  aria-selected={view === id}
+                  onClick={() => setView(id)}
+                  className={`px-3 py-1 rounded-full border font-semibold whitespace-nowrap ${view === id ? 'bg-stage-accent/20 border-stage-accent text-stage-accent' : 'border-stage-border text-stage-muted'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <ThemeToggle mode={theme.mode} onNext={theme.next} />
-          {viewing.sourceUrl.startsWith('http') && (
-            <a
-              href={viewing.sourceUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="px-2 py-1.5 rounded-lg hover:bg-stage-cardHover text-xs text-stage-muted flex items-center gap-1"
-            >
-              <ExternalLink className="w-3.5 h-3.5" /> hopamchuan.com
-            </a>
-          )}
-          {saved && (
-            <span className="px-3 py-1.5 rounded-lg bg-stage-accent/15 border border-stage-accent/40 text-stage-accent text-sm font-semibold flex items-center gap-1.5">
-              <BookmarkCheck className="w-4 h-4" /> In library
-            </span>
-          )}
         </div>
         {editing && <SongEditor title={viewing.title} text={viewing.chordpro} onSave={saveEdit} onClose={() => setEditing(false)} />}
-        {!gridOnly && (
-        <div className="flex items-center gap-1 px-3 pt-2 text-xs" role="tablist" aria-label="Song view">
-          {(
-            [
-              ['lyrics', 'Lyrics'],
-              ['grid', 'Grid chart'],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={view === id}
-              onClick={() => setView(id)}
-              className={`px-3 py-1 rounded-full border font-semibold ${view === id ? 'bg-stage-accent/20 border-stage-accent text-stage-accent' : 'border-stage-border text-stage-muted'}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        )}
         <div className="flex-1 min-h-0">
           {mode === 'grid' && timing ? (
             <GridChart

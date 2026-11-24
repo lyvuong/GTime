@@ -63,7 +63,8 @@ test('parseSong converts inline chord spans to ChordPro with capo and intro', ()
   assert.match(s.chordpro, /\{comment: Intro\}\n\[G\] \[C\]/);
   assert.match(s.chordpro, /Ngả \[G\]nghiêng/);
   assert.match(s.chordpro, /\{comment: Điệp khúc\}\n\[Am7\]Về/);
-  assert.match(s.chordpro, /\{comment: Source: https:\/\/hopamchuan\.com\/song\/23374\/nang-tho\/\}/);
+  assert.doesNotMatch(s.chordpro, /Source:/);
+  assert.equal(s.sourceUrl, 'https://hopamchuan.com/song/23374/nang-tho/');
 });
 
 test('parseSong throws when lyrics are missing', () => {

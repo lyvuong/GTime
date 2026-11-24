@@ -112,7 +112,6 @@ export function parseSong(html: string, id: string, slug: string): SongData {
   const parts = [head.join('\n')];
   if (intro.length) parts.push(`{comment: Intro}\n${intro.join('\n')}`);
   parts.push(body.join('\n').replace(/\n{3,}/g, '\n\n').trim());
-  parts.push(`{comment: Source: ${sourceUrl}}`);
 
   return { id, slug, title, artist, key, capo, chordpro: parts.join('\n\n') + '\n', sourceUrl };
 }
