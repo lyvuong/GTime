@@ -15,7 +15,9 @@ import { keyPrefersFlats, transposeChord } from './lib/chordTransposer';
 import { ThemeToggle } from './components/ThemeToggle';
 import { useTheme } from './lib/useTheme';
 import { db } from './lib/db';
-import { artistApi, artistsApi, searchApi, songApi, type Artist, type SearchResult } from './lib/api';
+import { artistApi, artistsApi, relatedApi, searchApi, songApi, type Artist, type Related, type SearchResult } from './lib/api';
+import { suggestNext, type Suggestion } from './lib/suggest';
+import { browserStore, loadShown, markShown } from './lib/shownToday';
 import { loadLengths, recordPlay, recordSearches } from './lib/libraryStore';
 import { sortLibrary, topSearched, type LibrarySort, type SongStats } from './lib/stats';
 import { checkForUpdate } from './utils/updateCheck';
@@ -122,6 +124,7 @@ export default function App() {
   const play = (song: Viewing) => {
     setSemitones(0);
     setViewing(song);
+    markShown(browserStore(), [song.sourceId]);
     recordPlay(song, true).catch(() => {});
   };
 
@@ -212,6 +215,33 @@ export default function App() {
       live = false;
     };
   }, [viewingId]);
+  // After a song: what to play next, from the genre's popular songs, tuned to what is in your library
+  const [related, setRelated] = useState<Related | null>(null);
+  useEffect(() => {
+    setRelated(null);
+    if (!viewing || !viewing.sourceId || !viewing.slug) return;
+    const ctrl = new AbortController();
+    relatedApi(viewing.sourceId, viewing.slug, ctrl.signal)
+      .then(setRelated)
+      .catch(() => {}); // offline or the source is down: just no suggestions
+    return () => ctrl.abort();
+  }, [viewing?.sourceId, viewing?.slug]);
+  // Worked out once when the candidates arrive (not on every library change), so the Next row stays put
+  // while you play; whatever it offers counts as shown today and is not offered again
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const latest = useRef({ library, allStats, viewing });
+  latest.current = { library, allStats, viewing };
+  useEffect(() => {
+    const { library: lib, allStats: stats, viewing: cur } = latest.current;
+    if (!related || !cur) {
+      setSuggestions([]);
+      return;
+    }
+    const plays = new Map((stats ?? []).map((s) => [s.sourceId, s.playCount]));
+    const next = suggestNext(related.candidates, related.genres[0]?.name ?? '', cur, lib ?? [], plays, loadShown(browserStore()));
+    setSuggestions(next);
+    markShown(browserStore(), next.map((s) => s.song.id));
+  }, [related]);
   const timing = useMemo(() => (shown ? songTiming(shown, 'auto', undefined, lengths) : null), [shown, lengths]);
   const [view, setViewState] = useState<'lyrics' | 'grid'>(() => {
     try {
@@ -334,6 +364,25 @@ export default function App() {
           />
           )}
         </div>
+        {suggestions.length > 0 && (
+          <section aria-label="Next song" className="flex items-center gap-2 px-3 py-1.5 border-t border-stage-border bg-stage-card">
+            <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-stage-muted">Next</span>
+            <div className="flex gap-1.5 overflow-x-auto">
+              {suggestions.map(({ song, reason }) => (
+                <button
+                  key={song.id}
+                  onClick={() => openSong(song.id, song.slug)}
+                  disabled={opening !== null}
+                  title={reason}
+                  className="shrink-0 max-w-[14rem] text-left px-3 py-1 rounded-lg border border-stage-border hover:bg-stage-cardHover disabled:opacity-60"
+                >
+                  <div className="text-sm font-semibold truncate">{opening === song.id ? 'Opening…' : song.title}</div>
+                  <div className="text-[11px] text-stage-muted truncate">{song.artists.join(', ') || reason}</div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
         <LooperBar key={`loop-${viewing.sourceId}`} />
       </div>
     );

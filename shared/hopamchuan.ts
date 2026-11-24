@@ -174,6 +174,52 @@ export async function getArtistSongs(id: string, slug: string, offset = 0): Prom
   return parseArtistPage(await fetchHtml(`${SOURCE_BASE}/artist/${id}/${slug}${off ? `?offset=${off}` : ''}`));
 }
 
+export interface Genre {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+const GENRE_HREF = /\/genre\/v\/(\d+)\/([a-z0-9_-]+)/i;
+
+// A song page lists its genres in the "Thể loại" row of the details table
+export function parseGenres(html: string): Genre[] {
+  const th = parse(html)
+    .querySelectorAll('th')
+    .find((t) => clean(t.text).replace(/:$/, '') === 'Thể loại');
+  const out: Genre[] = [];
+  for (const a of th?.nextElementSibling?.querySelectorAll('a') ?? []) {
+    const m = a.getAttribute('href')?.match(GENRE_HREF);
+    const name = clean(a.text);
+    if (m && name && !out.some((g) => g.id === m[1])) out.push({ id: m[1], slug: m[2], name });
+  }
+  return out;
+}
+
+export interface Related {
+  genres: Genre[];
+  candidates: SearchResult[]; // most popular first, the song's main genre ahead of its others
+}
+
+// Songs to suggest after this one: the most popular songs in its genre(s). A genre page lists
+// songs most viewed first, ten to a page, in the same markup as search results.
+export async function getRelated(id: string, slug: string): Promise<Related> {
+  if (!/^\d{1,9}$/.test(id) || !/^[a-z0-9-]{1,120}$/i.test(slug)) throw new Error('Invalid song reference');
+  const genres = parseGenres(await fetchHtml(`${SOURCE_BASE}/song/${id}/${slug}/`)).slice(0, 2);
+  const pages = genres.flatMap((g, i) => (i === 0 ? [0, 10] : [0]).map((off) => ({ g, off })));
+  const htmls = await Promise.all(
+    pages.map(({ g, off }) => fetchHtml(`${SOURCE_BASE}/genre/v/${g.id}/${g.slug}${off ? `?offset=${off}` : ''}`).catch(() => '')),
+  );
+  const seen = new Set([id]);
+  const candidates: SearchResult[] = [];
+  for (const r of htmls.flatMap(parseSearchResults)) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    candidates.push(r);
+  }
+  return { genres, candidates };
+}
+
 export async function getSong(id: string, slug: string): Promise<SongData> {
   // Only ever fetch a song page on the known host; reject anything shaped differently
   if (!/^\d{1,9}$/.test(id) || !/^[a-z0-9-]{1,120}$/i.test(slug)) throw new Error('Invalid song reference');

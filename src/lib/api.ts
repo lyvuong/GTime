@@ -1,6 +1,6 @@
-import type { Artist, ArtistSongs, SearchResult, SongData } from '../../shared/hopamchuan.ts';
+import type { Artist, ArtistSongs, Related, SearchResult, SongData } from '../../shared/hopamchuan.ts';
 
-export type { Artist, ArtistSongs, SearchResult, SongData };
+export type { Artist, ArtistSongs, Related, SearchResult, SongData };
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal });
@@ -17,6 +17,9 @@ export const artistsApi = (q: string, signal?: AbortSignal) =>
 
 export const artistApi = (id: string, slug: string, offset = 0) =>
   getJson<ArtistSongs>(`/api/artist?id=${encodeURIComponent(id)}&slug=${encodeURIComponent(slug)}&offset=${offset}`);
+
+export const relatedApi = (id: string, slug: string, signal?: AbortSignal) =>
+  getJson<Related>(`/api/related?id=${encodeURIComponent(id)}&slug=${encodeURIComponent(slug)}`, signal);
 
 export const songApi = (id: string, slug: string) =>
   getJson<SongData>(`/api/song?id=${encodeURIComponent(id)}&slug=${encodeURIComponent(slug)}`);

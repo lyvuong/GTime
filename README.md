@@ -30,6 +30,7 @@ It is a companion to the Nhạc StageChord app and shares its ChordPro engine, t
 ### Find and read songs
 - **Vietnamese song search.** Type part of a title or lyric, with or without accents. Matching songs from [HopAmChuan](https://hopamchuan.com) appear as you type.
 - **Popular songs by artist.** When your search matches an artist, their name appears above the results. Tap it to see that artist's songs, most viewed first, and tap **Show more songs** for the next ten.
+- **A suggested next song.** Under the song, a **Next** row offers three songs to play after it. They come from the most popular songs in the same genre on HopAmChuan. Songs by artists you already keep in your library (and play often) move up. Songs you already have in your library are left out. A song is never suggested twice in one day, and neither is one you have already opened that day.
 - **Clean chord sheets.** A song is converted to ChordPro and drawn with each chord right above the word it falls on, plus the key, capo and intro.
 - **Real-time transposition.** Shift the key up or down by semitones. Sharps and flats follow the song's key (F major gets B♭, not A♯).
 - **Light and dark themes.** Dark by default, with a light mode and an automatic mode that follows your device.

@@ -1,5 +1,5 @@
 // Request handler shared by the Cloudflare Worker and the Vite dev server.
-import { getArtistSongs, getSong, searchArtists, searchSongs } from './hopamchuan.ts';
+import { getArtistSongs, getRelated, getSong, searchArtists, searchSongs } from './hopamchuan.ts';
 
 const json = (data: unknown, status = 200, cache = 'no-store') =>
   new Response(JSON.stringify(data), {
@@ -23,6 +23,10 @@ export async function handleApi(url: URL): Promise<Response | null> {
         Number(url.searchParams.get('offset') ?? 0),
       );
       return json(page);
+    }
+    if (url.pathname === '/api/related') {
+      const related = await getRelated(url.searchParams.get('id') ?? '', url.searchParams.get('slug') ?? '');
+      return json(related, 200, 'public, max-age=3600'); // popularity order changes slowly
     }
     if (url.pathname === '/api/song') {
       const song = await getSong(url.searchParams.get('id') ?? '', url.searchParams.get('slug') ?? '');

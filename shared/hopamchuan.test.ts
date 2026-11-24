@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArtistPage, parseArtistResults, parseSearchResults, parseSong } from './hopamchuan.ts';
+import { parseGenres, parseArtistPage, parseArtistResults, parseSearchResults, parseSong } from './hopamchuan.ts';
 
 const chord = (c: string) => `<span class="hopamchuan_chord_inline"><i>[</i><span class="hopamchuan_chord">${c}</span><i>]</i></span>`;
 const lyric = (t: string) => `<span class="hopamchuan_lyric">${t}</span>`;
@@ -31,6 +31,18 @@ test('parseArtistPage reads the name, songs and whether there is a next page', (
   assert.equal(a.results[0].title, 'Diễm Xưa');
   assert.equal(a.hasMore, true);
   assert.equal(parseArtistPage(page('')).hasMore, false);
+});
+
+test('parseGenres reads the genres row of a song page and ignores other genre links', () => {
+  const html = `<a href="https://hopamchuan.com/genre">Thể loại</a>
+    <table><tr><th>Tác giả:</th><td><a href="/artist/1/x">X</a></td>
+    <th>Thể loại:</th><td><a href="https://hopamchuan.com/genre/v/27/nhac_tru_tinh">Nhạc Trữ Tình</a>
+    <a href="/genre/v/5/pop"> Pop </a><a href="/genre/v/27/nhac_tru_tinh">dup</a></td></tr></table>`;
+  assert.deepEqual(parseGenres(html), [
+    { id: '27', slug: 'nhac_tru_tinh', name: 'Nhạc Trữ Tình' },
+    { id: '5', slug: 'pop', name: 'Pop' },
+  ]);
+  assert.deepEqual(parseGenres('<html></html>'), []);
 });
 
 test('parseSong converts inline chord spans to ChordPro with capo and intro', () => {
