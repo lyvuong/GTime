@@ -21,8 +21,10 @@ interface ChordProViewerProps {
 
 const MIN_FIT_REM = 0.5;
 const FIT_STEP_REM = 0.05;
-const MAX_COLUMNS = 3;
+const MAX_COLUMNS = 5;
 const MIN_COLUMN_WIDTH_PX = 240;
+// Spacing between sections and lines is scaled by --sp; a long song may squeeze it to buy a bigger font
+const TIGHT_SPACING = 0.35;
 
 export const ChordProViewer: React.FC<ChordProViewerProps> = ({
   song,
@@ -41,7 +43,7 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const [fit, setFit] = useState<{ columns: number; fontRem: number; split: boolean } | null>(null);
+  const [fit, setFit] = useState<{ columns: number; fontRem: number; split: boolean; tight: boolean } | null>(null);
 
   // Re-run the fit whenever the container is resized
   useEffect(() => {
@@ -73,6 +75,7 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
     const prevFontSize = container.style.fontSize;
     const prevCount = content.style.columnCount;
     const prevPad = content.style.paddingBottom;
+    const prevSp = container.style.getPropertyValue('--sp');
     content.style.paddingBottom = '0';
 
     const bottomPad = parseFloat(getComputedStyle(container).paddingBottom) || 0;
@@ -86,19 +89,23 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
 
     // At each size prefer keeping sections whole; only let a section flow across columns if that
     // is what it takes (e.g. a song with no verse/chorus tags is one big section).
-    let best: { columns: number; fontRem: number; split: boolean } | null = null;
+    let best: { columns: number; fontRem: number; split: boolean; tight: boolean } | null = null;
+    // Largest font wins; at a given size, normal spacing is preferred over tight, then fewer columns
     search: for (let rem = maxRem; rem >= MIN_FIT_REM - 1e-6; rem -= FIT_STEP_REM) {
       container.style.fontSize = `${rem}rem`;
-      for (let cols = 1; cols <= maxColumns; cols++) {
-        content.style.columnCount = String(cols);
-        for (const split of cols === 1 ? [false] : [false, true]) {
-          setSplit(split);
-          const available = container.clientHeight - content.offsetTop - bottomPad;
-          const fitsHeight = content.getBoundingClientRect().height <= available + 0.5;
-          const fitsWidth = content.scrollWidth <= content.clientWidth + 1;
-          if (fitsHeight && fitsWidth) {
-            best = { columns: cols, fontRem: Number(rem.toFixed(2)), split };
-            break search;
+      for (const tight of [false, true]) {
+        container.style.setProperty('--sp', tight ? String(TIGHT_SPACING) : '1');
+        for (let cols = 1; cols <= maxColumns; cols++) {
+          content.style.columnCount = String(cols);
+          for (const split of cols === 1 ? [false] : [false, true]) {
+            setSplit(split);
+            const available = container.clientHeight - content.offsetTop - bottomPad;
+            const fitsHeight = content.getBoundingClientRect().height <= available + 0.5;
+            const fitsWidth = content.scrollWidth <= content.clientWidth + 1;
+            if (fitsHeight && fitsWidth) {
+              best = { columns: cols, fontRem: Number(rem.toFixed(2)), split, tight };
+              break search;
+            }
           }
         }
       }
@@ -106,11 +113,13 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
 
     for (const el of sectionEls) el.style.breakInside = '';
     container.style.fontSize = prevFontSize;
+    if (prevSp) container.style.setProperty('--sp', prevSp);
+    else container.style.removeProperty('--sp');
     content.style.columnCount = prevCount;
     content.style.paddingBottom = prevPad;
 
     setFit((prev) =>
-      prev && best && prev.columns === best.columns && prev.fontRem === best.fontRem && prev.split === best.split ? prev : best
+      prev && best && prev.columns === best.columns && prev.fontRem === best.fontRem && prev.split === best.split && prev.tight === best.tight ? prev : best
     );
   }, [song, zoomLevel, columnsPreference, isAutoScrolling, dimensions]);
 
@@ -139,7 +148,7 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
       className={`chordpro-scroll-surface relative w-full h-full p-3 sm:p-5 flex flex-col select-text transition-colors duration-150 ${
         fitted ? 'overflow-hidden' : 'overflow-y-auto'
       }`}
-      style={{ fontSize: activeFontSize }}
+      style={{ fontSize: activeFontSize, ['--sp' as string]: fitted?.tight ? TIGHT_SPACING : 1 }}
     >
       {/* Header Info Block */}
       <div className="flex-shrink-0 mb-3 border-b border-stage-border/60 pb-2.5 flex flex-wrap items-baseline justify-between gap-2">
@@ -232,18 +241,18 @@ const SectionView: React.FC<{
 
   return (
     <div
-      className={`${allowSplit ? "break-inside-auto" : "break-inside-avoid"} mb-[1em] rounded-xl ${
+      className={`${allowSplit ? "break-inside-auto" : "break-inside-avoid"} mb-[calc(1em*var(--sp,1))] rounded-xl ${
         isChorus
-          ? 'bg-stage-card/70 border-l-4 pl-[0.9em] pr-[0.5em] py-[0.6em] border-t border-r border-b border-stage-border/30'
+          ? 'bg-stage-card/70 border-l-4 pl-[0.9em] pr-[0.5em] py-[calc(0.6em*var(--sp,1))] border-t border-r border-b border-stage-border/30'
           : isBridge
-          ? 'bg-stage-card/40 border-l-4 border-l-amber-500 pl-[0.9em] pr-[0.5em] py-[0.5em] border-t border-r border-b border-stage-border/20'
-          : 'pl-[0.25em] py-[0.25em]'
+          ? 'bg-stage-card/40 border-l-4 border-l-amber-500 pl-[0.9em] pr-[0.5em] py-[calc(0.5em*var(--sp,1))] border-t border-r border-b border-stage-border/20'
+          : 'pl-[0.25em] py-[calc(0.25em*var(--sp,1))]'
       }`}
       style={isChorus ? { borderLeftColor: chordColor || 'rgb(var(--color-stage-accent))' } : undefined}
     >
       {/* Section Title Header */}
       {section.title && (
-        <div className="mb-[0.5em] flex items-center gap-1.5 break-after-avoid">
+        <div className="mb-[calc(0.5em*var(--sp,1))] flex items-center gap-1.5 break-after-avoid">
           <span
             className={`text-[0.75em] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md font-mono ${
               isBridge
@@ -260,7 +269,7 @@ const SectionView: React.FC<{
       )}
 
       {/* Section Lines */}
-      <div className="space-y-[0.5em]">
+      <div className="space-y-[calc(0.5em*var(--sp,1))]">
         {section.grid?.rows.map((row, r) => (
           <div key={`grid-${r}`} className="font-mono font-bold text-[0.95em] whitespace-pre-wrap break-words" style={{ color: chordColor || 'rgb(var(--color-stage-accent))' }}>
             {'| ' + row.map((bar) => bar.beats.map((b) => (b.hold ? '.' : b.chords.join('~'))).join(' ')).join(' | ') + ' |'}
@@ -301,7 +310,7 @@ const LineView: React.FC<{
   }
 
   if (line.type === 'empty') {
-    return <div className="h-[0.5em]" />;
+    return <div className="h-[calc(0.5em*var(--sp,1))]" />;
   }
 
   return (
