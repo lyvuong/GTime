@@ -23,6 +23,19 @@ export const normalize = (s: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '');
 
+/** Library artists, strongest first (each song counts once, plus once per play). */
+export function topArtists(library: LibrarySong[], playCounts: Map<string, number>, n = 2): string[] {
+  const weight = new Map<string, { name: string; w: number }>();
+  for (const s of library) {
+    const key = normalize(s.artist);
+    if (!key) continue;
+    const cur = weight.get(key) ?? { name: s.artist, w: 0 };
+    cur.w += 1 + (playCounts.get(s.sourceId) ?? 0);
+    weight.set(key, cur);
+  }
+  return [...weight.values()].sort((a, b) => b.w - a.w).slice(0, n).map((a) => a.name);
+}
+
 export function suggestNext(
   candidates: SearchResult[],
   genre: string,
@@ -58,7 +71,7 @@ export function suggestNext(
     const popularity = 1 - i / Math.max(candidates.length, 1);
     scored.push({
       song,
-      score: popularity + 0.6 * Math.min(1, best / 3),
+      score: popularity + 1.0 * Math.min(1, best / 2),
       reason: best > 0 ? `More ${bestArtist}, from your library` : genre ? `Popular in ${genre}` : 'Popular',
     });
   });

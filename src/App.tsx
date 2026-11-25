@@ -21,7 +21,7 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { useTheme } from './lib/useTheme';
 import { db } from './lib/db';
 import { artistApi, artistsApi, relatedApi, searchApi, songApi, type Artist, type Related, type SearchResult } from './lib/api';
-import { suggestNext, type Suggestion } from './lib/suggest';
+import { suggestNext, topArtists, type Suggestion } from './lib/suggest';
 import { browserStore, loadShown, markShown } from './lib/shownToday';
 import { recordPlay, recordSearches } from './lib/libraryStore';
 import { sortLibrary, topSearched, type LibrarySort, type SongStats } from './lib/stats';
@@ -274,9 +274,25 @@ export default function App() {
       return;
     }
     const plays = new Map((stats ?? []).map((s) => [s.sourceId, s.playCount]));
-    const next = suggestNext(related.candidates, related.genres[0]?.name ?? '', cur, lib ?? [], plays, loadShown(browserStore()));
-    setSuggestions(next);
-    markShown(browserStore(), next.map((s) => s.song.id));
+    const ctrl = new AbortController();
+    const show = (extra: SearchResult[]) => {
+      if (ctrl.signal.aborted) return;
+      const seen = new Set<string>();
+      const pool = [...related.candidates, ...extra].filter((s) => !seen.has(s.id) && seen.add(s.id));
+      const next = suggestNext(pool, related.genres[0]?.name ?? '', cur, lib ?? [], plays, loadShown(browserStore()));
+      setSuggestions(next);
+      markShown(browserStore(), next.map((s) => s.song.id));
+    };
+    // Also draw on the artists you keep most in your library, so suggestions sit close to what you have
+    Promise.all(
+      topArtists(lib ?? [], plays).map((name) =>
+        artistsApi(name)
+          .then((as) => (as[0] ? artistApi(as[0].id, as[0].slug) : null))
+          .then((a) => a?.results ?? [])
+          .catch(() => [] as SearchResult[]),
+      ),
+    ).then((lists) => show(lists.flat()));
+    return () => ctrl.abort();
   }, [related]);
   const [view, setViewState] = useState<'lyrics' | 'grid'>(() => {
     try {
