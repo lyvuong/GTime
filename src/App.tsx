@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeft, BookmarkCheck, ChevronLeft, ChevronRight, Info, Library, Loader2, Mic, Minus, Pencil, Play, Plus, RefreshCw, Search, Trash2, TrendingUp, X } from 'lucide-react';
+import { ArrowLeft, BookmarkCheck, ChevronLeft, ChevronRight, Info, Library, Loader2, Mic, Minus, Pencil, Play, Plus, RefreshCw, Search, Trash2, TrendingUp, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { AboutModal } from './components/AboutModal';
 import { LibraryBackup } from './components/LibraryBackup';
 import { PasteSong } from './components/PasteSong';
@@ -217,6 +217,9 @@ export default function App() {
   const rhythm = useRhythm(shown?.metadata.time);
   const [active, setActive] = useState<TokenRef | null>(null);
   const [follow, setFollow] = useState(true);
+  // 1 = the song fits itself on one screen; anything else is a fixed size in a scrolling column
+  const [zoom, setZoom] = useState(1);
+  const stepZoom = (d: number) => setZoom((z) => Math.min(2.4, Math.max(0.6, Math.round((z + d) * 10) / 10)));
   const [introId, setIntroId] = useState<string | null>(null);
   const intro = intros.find((i) => i.id === introId) ?? intros[0];
   const [lengthEdit, setLengthEdit] = useState<LengthEdit | undefined>();
@@ -337,6 +340,25 @@ export default function App() {
             </button>
           )}
           <div className="flex-1" />
+          {mode !== 'grid' && (
+            <div className="flex items-center gap-0.5" role="group" aria-label="Text size">
+              <button onClick={() => stepZoom(-0.2)} disabled={zoom <= 0.6} className="p-2 rounded-lg hover:bg-stage-cardHover disabled:opacity-40" aria-label="Smaller text" title="Smaller text">
+                <ZoomOut className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setZoom(1)}
+                disabled={zoom === 1}
+                className="px-1.5 py-1 rounded-lg hover:bg-stage-cardHover text-xs font-semibold tabular-nums disabled:text-stage-muted"
+                aria-label="Reset text size"
+                title="Reset: fit the song on one screen"
+              >
+                {zoom === 1 ? 'Fit' : `${Math.round(zoom * 100)}%`}
+              </button>
+              <button onClick={() => stepZoom(0.2)} disabled={zoom >= 2.4} className="p-2 rounded-lg hover:bg-stage-cardHover disabled:opacity-40" aria-label="Larger text" title="Larger text">
+                <ZoomIn className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           <button onClick={() => setEditing(true)} className="px-2 py-1.5 rounded-lg hover:bg-stage-cardHover text-xs font-semibold hidden sm:flex items-center gap-1">
             <Pencil className="w-3.5 h-3.5" /> Edit
           </button>
@@ -380,8 +402,8 @@ export default function App() {
           ) : (
           <ChordProViewer
             song={shown}
-            zoomLevel={1}
-            columnsPreference="auto"
+            zoomLevel={zoom}
+            columnsPreference={zoom === 1 ? 'auto' : 1}
             activeToken={active}
             startLine={startLine}
             follow={follow}
