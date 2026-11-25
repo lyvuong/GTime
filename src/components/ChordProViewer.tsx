@@ -5,7 +5,8 @@ interface ChordProViewerProps {
   song: ParsedSong;
   capo?: number;
   zoomLevel: number;
-  // 'auto' measures the rendered song and fits it on one screen; 1 is a plain scrolling column
+  // 'auto' measures the rendered song and fits it on one screen (zoomLevel then scales that fit, keeping its columns);
+  // 1 is a plain scrolling column at zoomLevel rem
   columnsPreference: 'auto' | 1;
   isAutoScrolling?: boolean;
   themeStyle?: string;
@@ -80,7 +81,7 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
 
     const bottomPad = parseFloat(getComputedStyle(container).paddingBottom) || 0;
     const maxColumns = Math.max(1, Math.min(MAX_COLUMNS, Math.floor(container.clientWidth / MIN_COLUMN_WIDTH_PX)));
-    const maxRem = 1.4 * zoomLevel;
+    const maxRem = 1.4;
 
     const sectionEls = Array.from(content.children) as HTMLElement[];
     const setSplit = (split: boolean) => {
@@ -121,7 +122,7 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
     setFit((prev) =>
       prev && best && prev.columns === best.columns && prev.fontRem === best.fontRem && prev.split === best.split && prev.tight === best.tight ? prev : best
     );
-  }, [song, zoomLevel, columnsPreference, isAutoScrolling, dimensions]);
+  }, [song, columnsPreference, isAutoScrolling, dimensions]);
 
   // Scroll to top whenever the song changes
   useEffect(() => {
@@ -140,13 +141,15 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
   // Auto that fits -> fixed one-screen layout; otherwise (1 Col, auto-scrolling, or too long) -> scrolling column
   const fitted = columnsPreference === 'auto' && !isAutoScrolling ? fit : null;
   const activeColumns = fitted ? fitted.columns : 1;
-  const activeFontSize = fitted ? `${fitted.fontRem}rem` : `${zoomLevel}rem`;
+  // In auto mode zoomLevel scales the fitted size and keeps its columns; beyond one screen the song scrolls
+  const zoomed = Boolean(fitted) && zoomLevel !== 1;
+  const activeFontSize = fitted ? `${Number((fitted.fontRem * zoomLevel).toFixed(3))}rem` : `${zoomLevel}rem`;
 
   return (
     <div
       ref={containerRef}
       className={`chordpro-scroll-surface relative w-full h-full p-3 sm:p-5 flex flex-col select-text transition-colors duration-150 ${
-        fitted ? 'overflow-hidden' : 'overflow-y-auto'
+        fitted && !zoomed ? 'overflow-hidden' : 'overflow-y-auto'
       }`}
       style={{ fontSize: activeFontSize, ['--sp' as string]: fitted?.tight ? TIGHT_SPACING : 1 }}
     >
@@ -199,7 +202,7 @@ export const ChordProViewer: React.FC<ChordProViewerProps> = ({
       {/* Multi-Column Song Sections Container */}
       <div
         ref={contentRef}
-        className={`w-full ${fitted ? '' : 'pb-36'}`}
+        className={`w-full ${fitted && !zoomed ? '' : 'pb-36'}`}
         style={{
           columnCount: activeColumns,
           columnGap: '1.75rem',

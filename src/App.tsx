@@ -217,7 +217,7 @@ export default function App() {
   const rhythm = useRhythm(shown?.metadata.time);
   const [active, setActive] = useState<TokenRef | null>(null);
   const [follow, setFollow] = useState(true);
-  // 1 = the song fits itself on one screen; anything else is a fixed size in a scrolling column
+  // 1 = the song fits itself on one screen; anything else scales that fit, keeping its columns, and scrolls
   const [zoom, setZoom] = useState(1);
   const stepZoom = (d: number) => setZoom((z) => Math.min(2.4, Math.max(0.6, Math.round((z + d) * 10) / 10)));
   const [introId, setIntroId] = useState<string | null>(null);
@@ -403,7 +403,7 @@ export default function App() {
           <ChordProViewer
             song={shown}
             zoomLevel={zoom}
-            columnsPreference={zoom === 1 ? 'auto' : 1}
+            columnsPreference="auto"
             activeToken={active}
             startLine={startLine}
             follow={follow}
